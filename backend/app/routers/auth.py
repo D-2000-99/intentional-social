@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db
+from app.core.deps import get_db, get_current_user
 from app.core.security import (
     get_password_hash,
     verify_password,
@@ -68,4 +68,30 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/users", response_model=list[UserOut])
 def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     users = db.query(User).offset(skip).limit(limit).all()
+    return users
+
+
+@router.get("/users/search", response_model=list[UserOut])
+def search_users(
+    q: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Search for users by exact username or email match"""
+    if not q or len(q) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Search query must be at least 2 characters",
+        )
+    
+    # Exact match on username or email
+    users = (
+        db.query(User)
+        .filter(
+            (User.username == q) | (User.email == q)
+        )
+        .filter(User.id != current_user.id)  # Exclude self
+        .all()
+    )
+    
     return users
