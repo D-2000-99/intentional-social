@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.db import Base
 
@@ -11,7 +11,7 @@ class ConnectionTag(Base):
     id = Column(Integer, primary_key=True, index=True)
     connection_id = Column(Integer, ForeignKey("connections.id"), nullable=False)
     tag_id = Column(Integer, ForeignKey("tags.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     connection = relationship("Connection", backref="connection_tags")

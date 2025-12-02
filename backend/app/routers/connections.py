@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 
 from app.core.deps import get_db, get_current_user
+from app.config import settings
 from app.models.user import User
 from app.models.connection import Connection
 from app.schemas.connection import ConnectionOut, ConnectionWithUser
@@ -23,6 +24,25 @@ def send_connection_request(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You cannot connect with yourself",
+        )
+
+    # Check if user has reached the maximum number of connections
+    accepted_count = (
+        db.query(Connection)
+        .filter(
+            or_(
+                Connection.requester_id == current_user.id,
+                Connection.recipient_id == current_user.id,
+            ),
+            Connection.status == "accepted",
+        )
+        .count()
+    )
+
+    if accepted_count >= settings.MAX_FOLLOWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You have reached the maximum ({settings.MAX_FOLLOWS}) connections",
         )
     
     # Check if recipient exists
