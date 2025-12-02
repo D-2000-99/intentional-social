@@ -63,3 +63,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token(subject=user.id)
 
     return Token(access_token=token)
+
+
+@router.get("/users", response_model=list[UserOut])
+def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users

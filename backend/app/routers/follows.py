@@ -5,6 +5,8 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.follow import Follow
 
+from app.config import settings
+
 router = APIRouter(prefix="/follows", tags=["Follows"])
 
 
@@ -42,16 +44,16 @@ def follow_user(
             detail="Already following this user",
         )
 
-    # Count enforcement (max 100)
+    # Count enforcement
     count = (
         db.query(Follow)
         .filter(Follow.follower_id == current_user.id)
         .count()
     )
-    if count >= 100:
+    if count >= settings.MAX_FOLLOWS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You already follow the maximum (100) users",
+            detail=f"You already follow the maximum ({settings.MAX_FOLLOWS}) users",
         )
 
     record = Follow(

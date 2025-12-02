@@ -21,7 +21,7 @@ from app.models.post import Post  # noqa
 config = context.config
 
 # Override DB URL dynamically
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Logging config
 if config.config_file_name is not None:
