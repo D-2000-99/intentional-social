@@ -85,13 +85,19 @@ def search_users(
         )
     
     # Exact match on username or email
-    users = (
+    results = (
         db.query(User)
-        .filter(
-            (User.username == q) | (User.email == q)
-        )
-        .filter(User.id != current_user.id)  # Exclude self
+        .filter(or_(User.username == q, User.email == q))
         .all()
     )
-    
-    return users
+
+    # Exclude current user from search results
+    results = [u for u in results if u.id != current_user.id]
+
+    return results
+
+
+@router.get("/me", response_model=UserOut)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user's details"""
+    return current_user

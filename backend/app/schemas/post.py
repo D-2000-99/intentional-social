@@ -3,6 +3,8 @@ from pydantic import BaseModel
 
 class PostCreate(BaseModel):
     content: str
+    audience_type: str = "all"  # 'all', 'tags', 'connections', 'private'
+    audience_tag_ids: list[int] = []  # Used when audience_type is 'tags'
 
 class AuthorOut(BaseModel):
     id: int
@@ -15,6 +17,7 @@ class PostOut(BaseModel):
     id: int
     author_id: int
     content: str
+    audience_type: str
     created_at: datetime
     author: AuthorOut  # Include author details
 

@@ -75,4 +75,27 @@ export const api = {
 
   searchUsers: (token, query) =>
     api.request(`/auth/users/search?q=${encodeURIComponent(query)}`, "GET", null, token),
+
+  // Tag management
+  getTags: (token) =>
+    api.request("/tags", "GET", null, token),
+
+  createTag: (token, name, colorScheme = "generic") =>
+    api.request("/tags", "POST", { name, color_scheme: colorScheme }, token),
+
+  updateTag: (token, tagId, data) =>
+    api.request(`/tags/${tagId}`, "PUT", data, token),
+
+  deleteTag: (token, tagId) =>
+    api.request(`/tags/${tagId}`, "DELETE", null, token),
+
+  // Connection tags
+  getConnectionTags: (token, connectionId) =>
+    api.request(`/connections/${connectionId}/tags`, "GET", null, token),
+
+  addTagToConnection: (token, connectionId, tagId) =>
+    api.request(`/connections/${connectionId}/tags`, "POST", { tag_id: tagId }, token),
+
+  removeTagFromConnection: (token, connectionId, tagId) =>
+    api.request(`/connections/${connectionId}/tags/${tagId}`, "DELETE", null, token),
 };

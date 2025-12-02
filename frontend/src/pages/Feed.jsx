@@ -1,16 +1,26 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import FeedFilterBar from "../components/FeedFilterBar";
+import AudienceSelector from "../components/AudienceSelector";
 
 export default function Feed() {
     const [posts, setPosts] = useState([]);
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(true);
+    const [selectedTagIds, setSelectedTagIds] = useState([]);
+    const [audience, setAudience] = useState({ audience_type: 'all', audience_tag_ids: [] });
     const { token } = useAuth();
 
-    const fetchFeed = async () => {
+    const fetchFeed = async (tagIds = []) => {
         try {
-            const data = await api.getFeed(token);
+            let data;
+            if (tagIds.length > 0) {
+                const tagIdsParam = tagIds.join(',');
+                data = await api.request(`/feed?tag_ids=${tagIdsParam}`, "GET", null, token);
+            } else {
+                data = await api.getFeed(token);
+            }
             setPosts(data);
         } catch (err) {
             console.error("Failed to fetch feed", err);
@@ -20,17 +30,22 @@ export default function Feed() {
     };
 
     useEffect(() => {
-        fetchFeed();
-    }, [token]);
+        fetchFeed(selectedTagIds);
+    }, [token, selectedTagIds]);
 
     const handlePost = async (e) => {
         e.preventDefault();
         if (!content.trim()) return;
 
         try {
-            await api.createPost(token, content);
+            await api.request("/posts/", "POST", {
+                content,
+                audience_type: audience.audience_type,
+                audience_tag_ids: audience.audience_tag_ids,
+            }, token);
             setContent("");
-            fetchFeed(); // Refresh feed
+            setAudience({ audience_type: 'all', audience_tag_ids: [] });
+            fetchFeed(selectedTagIds); // Refresh feed
         } catch (err) {
             alert("Failed to post");
         }
@@ -38,6 +53,8 @@ export default function Feed() {
 
     return (
         <div className="feed-container">
+            <FeedFilterBar onFilterChange={setSelectedTagIds} />
+
             <div className="create-post">
                 <form onSubmit={handlePost}>
                     <textarea
@@ -47,7 +64,8 @@ export default function Feed() {
                         rows="3"
                     />
                     <div className="post-actions">
-                        <button type="submit" disabled={!content.trim()}>
+                        <AudienceSelector onAudienceChange={setAudience} />
+                        <button type="submit">
                             Post
                         </button>
                     </div>

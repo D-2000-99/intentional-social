@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import TagPill from "../components/TagPill";
+import TagPicker from "../components/TagPicker";
 
 export default function Connections() {
     const [connections, setConnections] = useState([]);
+    const [connectionTags, setConnectionTags] = useState({});
     const [loading, setLoading] = useState(true);
     const { token } = useAuth();
 
@@ -12,10 +15,46 @@ export default function Connections() {
         try {
             const data = await api.getConnections(token);
             setConnections(data);
+
+            // Fetch tags for each connection
+            const tagsMap = {};
+            for (const conn of data) {
+                try {
+                    const tags = await api.getConnectionTags(token, conn.id);
+                    tagsMap[conn.id] = tags;
+                } catch (err) {
+                    tagsMap[conn.id] = [];
+                }
+            }
+            setConnectionTags(tagsMap);
         } catch (err) {
             console.error("Failed to fetch connections", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAddTag = async (connectionId, tag) => {
+        try {
+            await api.addTagToConnection(token, connectionId, tag.id);
+            setConnectionTags({
+                ...connectionTags,
+                [connectionId]: [...(connectionTags[connectionId] || []), tag],
+            });
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleRemoveTag = async (connectionId, tag) => {
+        try {
+            await api.removeTagFromConnection(token, connectionId, tag.id);
+            setConnectionTags({
+                ...connectionTags,
+                [connectionId]: connectionTags[connectionId].filter(t => t.id !== tag.id),
+            });
+        } catch (err) {
+            alert(err.message);
         }
     };
 
@@ -58,6 +97,20 @@ export default function Connections() {
                                 <span className="date">
                                     Connected {new Date(conn.created_at).toLocaleDateString()}
                                 </span>
+
+                                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                    {(connectionTags[conn.id] || []).map((tag) => (
+                                        <TagPill
+                                            key={tag.id}
+                                            tag={tag}
+                                            onRemove={(t) => handleRemoveTag(conn.id, t)}
+                                        />
+                                    ))}
+                                    <TagPicker
+                                        onTagSelect={(tag) => handleAddTag(conn.id, tag)}
+                                        existingTagIds={(connectionTags[conn.id] || []).map(t => t.id)}
+                                    />
+                                </div>
                             </div>
                             <div className="actions">
                                 <button

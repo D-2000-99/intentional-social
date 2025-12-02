@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from "react";
 import { jwtDecode } from "jwt-decode";
+import { api } from "../api";
 
 const AuthContext = createContext();
 
@@ -15,7 +16,8 @@ export const AuthProvider = ({ children }) => {
                 if (decoded.exp * 1000 < Date.now()) {
                     logout();
                 } else {
-                    setUser({ username: decoded.sub }); // Simple user object from token
+                    // Fetch full user details from backend
+                    fetchUserDetails();
                     localStorage.setItem("token", token);
                 }
             } catch (e) {
@@ -25,6 +27,16 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem("token");
         }
     }, [token]);
+
+    const fetchUserDetails = async () => {
+        try {
+            const userData = await api.request("/auth/me", "GET", null, token);
+            setUser(userData);
+        } catch (err) {
+            console.error("Failed to fetch user details", err);
+            logout();
+        }
+    };
 
     const login = (newToken) => {
         setToken(newToken);

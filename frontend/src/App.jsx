@@ -26,7 +26,10 @@ const Layout = ({ children }) => {
                     <a href="/search">Search</a>
                     <a href="/requests">Requests</a>
                     <a href="/connections">Connections</a>
-                    <span className="user-info">{user?.username}</span>
+                    <div className="user-profile">
+                        <span className="user-profile__name">{user?.username}</span>
+                        <span className="user-profile__email">{user?.email}</span>
+                    </div>
                     <button onClick={logout} className="logout-btn">Logout</button>
                 </div>
             </nav>

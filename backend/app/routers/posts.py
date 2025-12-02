@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_db, get_current_user
 from app.models.post import Post
+from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.post import PostCreate, PostOut
 from app.models.user import User
 
@@ -18,11 +19,22 @@ def create_post(
     new_post = Post(
         author_id=current_user.id,
         content=payload.content,
+        audience_type=payload.audience_type,
     )
 
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
+    
+    # If audience is tags, create post_audience_tags
+    if payload.audience_type == "tags" and payload.audience_tag_ids:
+        for tag_id in payload.audience_tag_ids:
+            audience_tag = PostAudienceTag(
+                post_id=new_post.id,
+                tag_id=tag_id,
+            )
+            db.add(audience_tag)
+        db.commit()
 
     return new_post
 
