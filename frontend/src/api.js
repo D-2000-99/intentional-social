@@ -45,6 +45,9 @@ export const api = {
   createPost: (token, content) =>
     api.request("/posts/", "POST", { content }, token),
 
+  getMyPosts: (token) =>
+    api.request("/posts/me", "GET", null, token),
+
   getUsers: (token) =>
     api.request("/auth/users", "GET", null, token),
 

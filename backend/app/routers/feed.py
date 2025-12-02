@@ -43,11 +43,10 @@ def get_feed(
         else:
             connected_user_ids.append(conn.requester_id)
     
-    # If no connections, return empty feed
-    if not connected_user_ids:
-        return []
+    # Add own user ID to see own posts in feed
+    connected_user_ids.append(current_user.id)
     
-    # Get posts from connected users, chronologically
+    # Get posts from connected users + self, chronologically
     # Use joinedload to eager load the author relationship
     posts = (
         db.query(Post)

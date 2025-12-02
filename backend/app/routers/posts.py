@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_db, get_current_user
 from app.models.post import Post
@@ -25,3 +25,19 @@ def create_post(
     db.refresh(new_post)
 
     return new_post
+
+
+@router.get("/me", response_model=list[PostOut])
+def get_my_posts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all posts by the current user"""
+    posts = (
+        db.query(Post)
+        .options(joinedload(Post.author))
+        .filter(Post.author_id == current_user.id)
+        .order_by(Post.created_at.desc())
+        .all()
+    )
+    return posts
