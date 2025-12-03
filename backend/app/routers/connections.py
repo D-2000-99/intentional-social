@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
+import logging
 
 from app.core.deps import get_db, get_current_user
 from app.config import settings
 from app.models.user import User
-from app.models.connection import Connection
+from app.models.connection import Connection, ConnectionStatus
 from app.schemas.connection import ConnectionOut, ConnectionWithUser
 
 router = APIRouter(prefix="/connections", tags=["Connections"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/request/{recipient_id}", status_code=status.HTTP_201_CREATED)
@@ -34,15 +36,18 @@ def send_connection_request(
                 Connection.requester_id == current_user.id,
                 Connection.recipient_id == current_user.id,
             ),
-            Connection.status == "accepted",
+            Connection.status == ConnectionStatus.ACCEPTED,
         )
         .count()
     )
 
-    if accepted_count >= settings.MAX_FOLLOWS:
+    if accepted_count >= settings.MAX_CONNECTIONS:
+        logger.warning(
+            f"User {current_user.id} ({current_user.username}) reached connection limit: {accepted_count}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You have reached the maximum ({settings.MAX_FOLLOWS}) connections",
+            detail=f"You have reached the maximum ({settings.MAX_CONNECTIONS}) connections",
         )
     
     # Check if recipient exists
@@ -72,18 +77,21 @@ def send_connection_request(
     )
     
     if existing:
-        if existing.status == "pending":
+        if existing.status == ConnectionStatus.PENDING:
             # If they sent us a request, auto-accept it
             if existing.requester_id == recipient_id:
-                existing.status = "accepted"
+                existing.status = ConnectionStatus.ACCEPTED
                 db.commit()
+                logger.info(
+                    f"Mutual connection auto-accepted between users {current_user.id} and {recipient_id}"
+                )
                 return {"detail": "Connection accepted (mutual request)", "connection_id": existing.id}
             else:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Connection request already sent",
                 )
-        elif existing.status == "accepted":
+        elif existing.status == ConnectionStatus.ACCEPTED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Already connected",
@@ -93,12 +101,13 @@ def send_connection_request(
     new_connection = Connection(
         requester_id=current_user.id,
         recipient_id=recipient_id,
-        status="pending",
+        status=ConnectionStatus.PENDING,
     )
     db.add(new_connection)
     db.commit()
     db.refresh(new_connection)
     
+    logger.info(f"User {current_user.id} sent connection request to user {recipient_id}")
     return {"detail": "Connection request sent", "connection_id": new_connection.id}
 
 
@@ -107,32 +116,29 @@ def get_incoming_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all pending connection requests sent to me"""
+    """Get all pending connection requests sent to me."""
     
+    # Use joinedload to avoid N+1 queries (loads users in single query)
     requests = (
         db.query(Connection)
+        .options(joinedload(Connection.requester))
         .filter(
             Connection.recipient_id == current_user.id,
-            Connection.status == "pending",
+            Connection.status == ConnectionStatus.PENDING,
         )
         .all()
     )
     
-    result = []
-    for req in requests:
-        requester = db.query(User).filter(User.id == req.requester_id).first()
-        result.append(
-            ConnectionWithUser(
-                id=req.id,
-                status=req.status,
-                created_at=req.created_at,
-                other_user_id=requester.id,
-                other_user_username=requester.username,
-                other_user_email=requester.email,
-            )
+    return [
+        ConnectionWithUser(
+            id=req.id,
+            status=req.status.value,  # Convert enum to string for response
+            created_at=req.created_at,
+            other_user_id=req.requester.id,
+            other_user_username=req.requester.username,
         )
-    
-    return result
+        for req in requests
+    ]
 
 
 @router.get("/requests/outgoing", response_model=list[ConnectionWithUser])
@@ -140,32 +146,29 @@ def get_outgoing_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all pending connection requests I sent"""
+    """Get all pending connection requests I sent."""
     
+    # Use joinedload to avoid N+1 queries
     requests = (
         db.query(Connection)
+        .options(joinedload(Connection.recipient))
         .filter(
             Connection.requester_id == current_user.id,
-            Connection.status == "pending",
+            Connection.status == ConnectionStatus.PENDING,
         )
         .all()
     )
     
-    result = []
-    for req in requests:
-        recipient = db.query(User).filter(User.id == req.recipient_id).first()
-        result.append(
-            ConnectionWithUser(
-                id=req.id,
-                status=req.status,
-                created_at=req.created_at,
-                other_user_id=recipient.id,
-                other_user_username=recipient.username,
-                other_user_email=recipient.email,
-            )
+    return [
+        ConnectionWithUser(
+            id=req.id,
+            status=req.status.value,
+            created_at=req.created_at,
+            other_user_id=req.recipient.id,
+            other_user_username=req.recipient.username,
         )
-    
-    return result
+        for req in requests
+    ]
 
 
 @router.post("/accept/{connection_id}")
@@ -191,15 +194,37 @@ def accept_connection_request(
             detail="You can only accept requests sent to you",
         )
     
-    if connection.status == "accepted":
+    if connection.status == ConnectionStatus.ACCEPTED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Connection already accepted",
         )
     
-    connection.status = "accepted"
+    # Check connection limit before accepting
+    accepted_count = (
+        db.query(Connection)
+        .filter(
+            or_(
+                Connection.requester_id == current_user.id,
+                Connection.recipient_id == current_user.id,
+            ),
+            Connection.status == ConnectionStatus.ACCEPTED,
+        )
+        .count()
+    )
+    
+    if accepted_count >= settings.MAX_CONNECTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You have reached the maximum ({settings.MAX_CONNECTIONS}) connections",
+        )
+    
+    connection.status = ConnectionStatus.ACCEPTED
     db.commit()
     
+    logger.info(
+        f"User {current_user.id} accepted connection request {connection_id} from user {connection.requester_id}"
+    )
     return {"detail": "Connection accepted"}
 
 
@@ -229,6 +254,7 @@ def reject_connection_request(
     db.delete(connection)
     db.commit()
     
+    logger.info(f"User {current_user.id} rejected/cancelled connection {connection_id}")
     return {"detail": "Connection request rejected"}
 
 
@@ -237,38 +263,34 @@ def get_connections(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all accepted connections"""
+    """Get all accepted connections."""
     
+    # Use joinedload for both requester and recipient to avoid N+1 queries
     connections = (
         db.query(Connection)
+        .options(joinedload(Connection.requester), joinedload(Connection.recipient))
         .filter(
             or_(
                 Connection.requester_id == current_user.id,
                 Connection.recipient_id == current_user.id,
             ),
-            Connection.status == "accepted",
+            Connection.status == ConnectionStatus.ACCEPTED,
         )
         .all()
     )
     
     result = []
     for conn in connections:
-        # Determine the other user
-        if conn.requester_id == current_user.id:
-            other_user_id = conn.recipient_id
-        else:
-            other_user_id = conn.requester_id
-        
-        other_user = db.query(User).filter(User.id == other_user_id).first()
+        # Determine the other user (already loaded via joinedload)
+        other_user = conn.recipient if conn.requester_id == current_user.id else conn.requester
         
         result.append(
             ConnectionWithUser(
                 id=conn.id,
-                status=conn.status,
+                status=conn.status.value,
                 created_at=conn.created_at,
                 other_user_id=other_user.id,
                 other_user_username=other_user.username,
-                other_user_email=other_user.email,
             )
         )
     

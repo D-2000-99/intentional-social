@@ -47,28 +47,73 @@ Built with clean, modern, production-aligned patterns.
 - [x] **Dependencies**: Fixed circular/duplicate dependency issues in `core`.
 - [x] **Imports**: Verified package structure and imports.
 
-## 🚀 Next Steps
+## 🚀 Quick Start
 
-1.  **Seed Data**: Run the seed script to populate users and content.
-    ```bash
-    python scripts/seed.py
-    ```
-2.  **Integration Testing**: Verify auth flows, follow limits, and feed ordering.
-3.  **Dockerization**: Containerize the FastAPI application for deployment.
-4.  **MVP Deployment**: Deploy to a PaaS (Render/Fly.io) for initial user testing.
+### Prerequisites
+- Python 3.13+
+- PostgreSQL 16+
+- Node.js 18+ (for frontend)
+
+### Setup
+
+1. **Backend Setup:**
+   ```bash
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   cp .env.example .env  # Configure your environment variables
+   alembic upgrade head
+   ```
+
+2. **Frontend Setup:**
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env  # Set VITE_API_URL
+   npm run dev
+   ```
+
+3. **Seed Data (Optional):**
+   ```bash
+   cd backend
+   python seed.py
+   ```
+
+### Deployment
+
+See `DEPLOYMENT_QUICK_START.md` for deployment instructions.
 
 ## 📂 Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── core/       # Security, Config, Deps
-│   ├── models/     # SQLAlchemy Models (User, Follow, Post)
-│   ├── routers/    # API Endpoints (Auth, Feed, Follows, Posts)
-│   ├── schemas/    # Pydantic Schemas
-│   ├── db.py       # Database Session
-│   └── main.py     # App Entrypoint
-├── migrations/     # Alembic Migrations
-├── scripts/        # Utility Scripts (Seeding)
-└── requirements.txt
+│   ├── core/          # Security, Config, Dependencies
+│   ├── models/         # SQLAlchemy Models (User, Connection, Post, Tag)
+│   ├── routers/        # API Endpoints (Auth, Feed, Connections, Posts, Tags)
+│   ├── schemas/        # Pydantic Schemas
+│   ├── db.py           # Database Session
+│   └── main.py         # App Entrypoint
+├── migrations/         # Alembic Migrations
+├── tests/              # Test Suite
+├── seed.py             # Database Seeding Script
+├── Dockerfile          # Container Configuration
+└── requirements.txt    # Python Dependencies
+
+frontend/
+├── src/
+│   ├── components/     # React Components
+│   ├── context/        # React Context (Auth)
+│   ├── pages/          # Page Components
+│   └── api.js          # API Client
+├── Dockerfile          # Container Configuration
+└── nginx.conf          # Nginx Configuration
 ```
+
+## 📚 Documentation
+
+- `README.md` - This file (project overview)
+- `DEPLOYMENT_QUICK_START.md` - Quick deployment guide
+- `PRODUCTION_DEPLOYMENT_PLAN.md` - Detailed production deployment
+- `TECHNICAL_REVIEW_V2.md` - Technical review and improvements

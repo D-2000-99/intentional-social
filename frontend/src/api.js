@@ -1,4 +1,5 @@
-const API_URL = "http://localhost:8000";
+// Use environment variable for API URL, fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const api = {
   async request(endpoint, method = "GET", body = null, token = null) {
@@ -24,20 +25,31 @@ export const api = {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "API Error");
+        // Handle both string and object error details
+        const errorMessage = typeof data.detail === 'string' 
+          ? data.detail 
+          : (data.detail?.message || JSON.stringify(data.detail) || "API Error");
+        throw new Error(errorMessage);
       }
 
       return data;
     } catch (error) {
-      throw error;
+      // Ensure we always throw an Error with a string message
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
     }
   },
 
   login: (username_or_email, password) =>
     api.request("/auth/login", "POST", { username_or_email, password }),
 
-  register: (email, username, password) =>
-    api.request("/auth/register", "POST", { email, username, password }),
+  sendRegistrationOTP: (email) =>
+    api.request("/auth/send-registration-otp", "POST", { email }),
+
+  register: (email, username, password, otpCode) =>
+    api.request("/auth/register", "POST", { email, username, password, otp_code: otpCode }),
 
   getFeed: (token, skip = 0, limit = 20) =>
     api.request(`/feed/?skip=${skip}&limit=${limit}`, "GET", null, token),

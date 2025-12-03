@@ -27,12 +27,12 @@ class ConnectionOut(BaseModel):
 
 
 class ConnectionWithUser(BaseModel):
+    """Connection with other user details (email removed for privacy)."""
     id: int
     status: str
     created_at: datetime
     other_user_id: int
     other_user_username: str
-    other_user_email: str
 
     class Config:
         from_attributes = True

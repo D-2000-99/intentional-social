@@ -1,3 +1,12 @@
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 # Python
 __pycache__/
 *.py[cod]
@@ -8,7 +17,7 @@ __pycache__/
 dist/
 build/
 
-# Virtual env
+# Virtual Environments
 venv/
 env/
 ENV/
@@ -19,7 +28,7 @@ ENV/
 .env.local
 .env.*.local
 
-# Local DB artifacts
+# Database files
 *.db
 *.sqlite
 *.sqlite3
@@ -31,10 +40,15 @@ ENV/
 *.swo
 *~
 
-# OS
-.DS_Store
-.DS_Store?
-._*
+# Logs
+*.log
+logs/
+
+# Node (for frontend)
+node_modules/
+dist/
+dist-ssr/
+*.local
 
 # Testing
 .pytest_cache/
@@ -42,11 +56,9 @@ ENV/
 htmlcov/
 .tox/
 
-# Logs
-*.log
-logs/
-
 # Temporary files
 *.tmp
 *.temp
 *.bak
+*.swp
+

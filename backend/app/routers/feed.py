@@ -5,7 +5,7 @@ from sqlalchemy import select, union_all, or_, and_
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.post import Post
-from app.models.connection import Connection
+from app.models.connection import Connection, ConnectionStatus
 from app.models.connection_tag import ConnectionTag
 from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.post import PostOut
@@ -34,7 +34,7 @@ def get_feed(
                 Connection.requester_id == current_user.id,
                 Connection.recipient_id == current_user.id,
             ),
-            Connection.status == "accepted",
+            Connection.status == ConnectionStatus.ACCEPTED,
         )
         .all()
     )

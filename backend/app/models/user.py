@@ -12,6 +12,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+    email_verified = Column(String(10), default="false", nullable=False)  # 'true' or 'false' as string for simplicity
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")

@@ -1,14 +1,23 @@
 import PropTypes from 'prop-types';
+import { getPastelColorFromString, getContrastingTextColor } from '../utils/colors';
 
 export default function TagPill({ tag, selected, onRemove, onClick, clickable }) {
-    const colorClass = `tag-pill--${tag.color_scheme || 'generic'}`;
+    // Generate pastel color from tag name
+    const backgroundColor = getPastelColorFromString(tag.name);
+    const textColor = getContrastingTextColor(backgroundColor);
+    
     const classes = [
         'tag-pill',
-        colorClass,
         clickable && 'tag-pill--clickable',
         selected && 'tag-pill--selected',
         onRemove && 'tag-pill--removable',
     ].filter(Boolean).join(' ');
+    
+    const style = {
+        backgroundColor,
+        color: textColor,
+        borderColor: selected ? 'rgba(15, 23, 42, 0.25)' : 'rgba(15, 23, 42, 0.08)',
+    };
 
     const handleClick = () => {
         if (clickable && onClick) {
@@ -24,7 +33,7 @@ export default function TagPill({ tag, selected, onRemove, onClick, clickable })
     };
 
     return (
-        <span className={classes} onClick={handleClick}>
+        <span className={classes} style={style} onClick={handleClick}>
             {tag.name}
             {onRemove && (
                 <button
@@ -32,6 +41,7 @@ export default function TagPill({ tag, selected, onRemove, onClick, clickable })
                     onClick={handleRemove}
                     type="button"
                     aria-label={`Remove ${tag.name} tag`}
+                    style={{ color: textColor }}
                 >
                     ×
                 </button>

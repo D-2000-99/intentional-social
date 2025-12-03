@@ -1,8 +1,16 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint, Index, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+from enum import Enum
 
 from app.db import Base
+
+
+class ConnectionStatus(str, Enum):
+    """Valid connection status values."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
 
 
 class Connection(Base):
@@ -11,7 +19,11 @@ class Connection(Base):
     id = Column(Integer, primary_key=True, index=True)
     requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(String, default="pending", nullable=False)  # 'pending', 'accepted', 'rejected'
+    status = Column(
+        SQLEnum(ConnectionStatus),
+        default=ConnectionStatus.PENDING,
+        nullable=False
+    )
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
