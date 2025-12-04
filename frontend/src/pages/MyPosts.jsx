@@ -11,6 +11,16 @@ export default function MyPosts() {
         setLoading(true);
         try {
             const data = await api.getMyPosts(token);
+            // Debug: log posts with photos
+            data.forEach(post => {
+                if (post.photo_urls && post.photo_urls.length > 0) {
+                    console.log(`Post ${post.id} has ${post.photo_urls.length} photos:`, {
+                        photo_urls: post.photo_urls,
+                        photo_urls_presigned: post.photo_urls_presigned,
+                        presigned_count: post.photo_urls_presigned?.length || 0
+                    });
+                }
+            });
             setPosts(data);
         } catch (err) {
             console.error("Failed to fetch posts", err);
@@ -44,7 +54,32 @@ export default function MyPosts() {
                                     {new Date(post.created_at).toLocaleDateString()}
                                 </span>
                             </div>
-                            <p className="post-content">{post.content}</p>
+                            {post.content && (
+                                <p className="post-content">{post.content}</p>
+                            )}
+                            {/* Display photos */}
+                            {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
+                                <div className="post-photos">
+                                    {post.photo_urls_presigned.map((url, index) => (
+                                        <img
+                                            key={index}
+                                            src={url}
+                                            alt={`Post photo ${index + 1}`}
+                                            className="post-photo"
+                                            loading="lazy"
+                                            onError={(e) => {
+                                                console.error(`Failed to load image ${index + 1} for post ${post.id}`);
+                                                console.error(`Full URL:`, url);
+                                                console.error(`Error details:`, e);
+                                                e.target.style.display = 'none';
+                                            }}
+                                            onLoad={() => {
+                                                console.log(`Successfully loaded image ${index + 1} for post ${post.id}`);
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

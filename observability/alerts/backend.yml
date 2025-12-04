@@ -1,0 +1,179 @@
+groups:
+  - name: backend_alerts
+    interval: 30s
+    rules:
+      # Service is down
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend service is down"
+          description: "The backend service has been down for more than 1 minute. Immediate action required."
+
+      # High error rate (5xx errors)
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) 
+            / 
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate detected"
+          description: "More than 5% of requests are returning 5xx errors (current: {{ $value | humanizePercentage }})"
+
+      # Slow response times
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow API response times"
+          description: "95th percentile response time is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total{job="backend"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on backend"
+          description: "Backend CPU usage is {{ $value | humanize }}% (threshold: 80%)"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          (process_resident_memory_bytes{job="backend"} / 1024 / 1024) > 1500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on backend"
+          description: "Backend memory usage is {{ $value | humanize }}MB (threshold: 1500MB)"
+
+      # Too many open database connections
+      - alert: TooManyDBConnections
+        expr: |
+          sum(pg_stat_database_numbackends) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many database connections"
+          description: "Database has {{ $value }} active connections (threshold: 80)"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # Database is down
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "The database has been unreachable for more than 1 minute"
+
+      # High database connections
+      - alert: HighDatabaseConnections
+        expr: |
+          (
+            pg_stat_database_numbackends{datname="intentional_social"} 
+            / 
+            pg_settings_max_connections
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection pool is {{ $value | humanizePercentage }} full"
+
+      # Slow queries
+      - alert: SlowQueries
+        expr: |
+          rate(pg_stat_statements_mean_time_seconds[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value | humanizeDuration }}"
+
+      # Database size growing rapidly
+      - alert: DatabaseSizeGrowing
+        expr: |
+          rate(pg_database_size_bytes[1h]) > 100000000  # 100MB/hour
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database growing rapidly"
+          description: "Database size is increasing at {{ $value | humanize1024 }}/hour"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # Low disk space
+      - alert: LowDiskSpace
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"} 
+            / 
+            node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+          ) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value | humanize }}% disk space remaining"
+
+      # High system CPU
+      - alert: HighSystemCPU
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system CPU usage"
+          description: "System CPU usage is {{ $value | humanize }}%"
+
+      # High system memory
+      - alert: HighSystemMemory
+        expr: |
+          (
+            (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) 
+            / 
+            node_memory_MemTotal_bytes
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High system memory usage"
+          description: "System memory usage is {{ $value | humanize }}%"
+
+      # System load high
+      - alert: HighSystemLoad
+        expr: |
+          node_load15 / count(node_cpu_seconds_total{mode="idle"}) without (cpu, mode) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load"
+          description: "System load is {{ $value | humanize }} (15min average)"

@@ -26,8 +26,8 @@ export const api = {
 
       if (!response.ok) {
         // Handle both string and object error details
-        const errorMessage = typeof data.detail === 'string' 
-          ? data.detail 
+        const errorMessage = typeof data.detail === 'string'
+          ? data.detail
           : (data.detail?.message || JSON.stringify(data.detail) || "API Error");
         throw new Error(errorMessage);
       }
@@ -54,8 +54,44 @@ export const api = {
   getFeed: (token, skip = 0, limit = 20) =>
     api.request(`/feed/?skip=${skip}&limit=${limit}`, "GET", null, token),
 
-  createPost: (token, content) =>
-    api.request("/posts/", "POST", { content }, token),
+  createPost: (token, content, audience_type = "all", audience_tag_ids = [], photos = []) => {
+    // Always use multipart/form-data since backend expects Form parameters
+    const formData = new FormData();
+    formData.append("content", content);
+    formData.append("audience_type", audience_type);
+    if (audience_tag_ids.length > 0) {
+      formData.append("audience_tag_ids", audience_tag_ids.join(","));
+    }
+
+    // Append each photo file if present
+    if (photos && photos.length > 0) {
+      photos.forEach((photo) => {
+        formData.append("photos", photo);
+      });
+    }
+
+    // Make request with FormData (don't set Content-Type header, browser will set it with boundary)
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      // Don't set Content-Type - browser will set it with boundary for multipart/form-data
+    };
+
+    return fetch(`${API_URL}/posts/`, {
+      method: "POST",
+      headers,
+      body: formData,
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          const errorMessage = typeof data.detail === 'string'
+            ? data.detail
+            : (data.detail?.message || JSON.stringify(data.detail) || "API Error");
+          throw new Error(errorMessage);
+        }
+        return data;
+      });
+  },
 
   getMyPosts: (token) =>
     api.request("/posts/me", "GET", null, token),

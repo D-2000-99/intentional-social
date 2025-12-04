@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    MAX_CONNECTIONS: int = 100
+    MAX_CONNECTIONS: int = 10
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     
     # Email configuration (optional for MVP - can skip in dev)
@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
+    
+    # S3 configuration for photo storage
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    S3_BUCKET_NAME: str = ""
+    S3_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects in S3
+    S3_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
 
     @field_validator('SECRET_KEY')
     @classmethod

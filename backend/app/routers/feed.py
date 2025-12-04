@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, union_all, or_, and_
 
 from app.core.deps import get_db, get_current_user
+from app.core.s3 import generate_presigned_urls
 from app.models.user import User
 from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
@@ -72,8 +73,7 @@ def get_feed(
                 else:
                     filtered_user_ids.append(conn.requester_id)
         
-        # Always include own posts
-        filtered_user_ids.append(current_user.id)
+        # When tag filtering is active, exclude own posts - only show posts from tagged connections
         connected_user_ids = filtered_user_ids
     
     # Get posts from connected users + self, chronologically
@@ -146,4 +146,34 @@ def get_feed(
                 if connection_tags:
                     filtered_posts.append(post)
 
-    return filtered_posts
+    # Convert posts to PostOut with pre-signed URLs for photos
+    result = []
+    for post in filtered_posts:
+        # Generate pre-signed URLs for photos
+        photo_urls_presigned = []
+        if post.photo_urls:
+            try:
+                photo_urls_presigned = generate_presigned_urls(post.photo_urls)
+            except Exception as e:
+                # Log error for debugging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
+                logger.error(f"Photo URLs: {post.photo_urls}")
+                # Return empty list if pre-signed URL generation fails
+                photo_urls_presigned = []
+        
+        # Create PostOut with pre-signed URLs
+        post_dict = {
+            "id": post.id,
+            "author_id": post.author_id,
+            "content": post.content,
+            "audience_type": post.audience_type,
+            "photo_urls": post.photo_urls or [],
+            "photo_urls_presigned": photo_urls_presigned,
+            "created_at": post.created_at,
+            "author": post.author
+        }
+        result.append(PostOut(**post_dict))
+
+    return result
