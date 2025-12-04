@@ -332,7 +332,7 @@ curl http://localhost
 
 ---
 
-### Step 9: Configure Nginx Reverse Proxy
+### Step 9: Configure Nginx Reverse Proxy (D: Need to change YOUR_VPS_IP)
 
 **Create Nginx configuration:**
 ```bash

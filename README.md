@@ -114,6 +114,8 @@ frontend/
 ## 📚 Documentation
 
 - `README.md` - This file (project overview)
+- `VPS_SETUP_GUIDE.md` - Complete VPS setup and backend deployment guide
+- `CLOUDFLARE_PAGES_SETUP.md` - Frontend deployment to Cloudflare Pages
 - `DEPLOYMENT_QUICK_START.md` - Quick deployment guide
 - `PRODUCTION_DEPLOYMENT_PLAN.md` - Detailed production deployment
 - `TECHNICAL_REVIEW_V2.md` - Technical review and improvements
