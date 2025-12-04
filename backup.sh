@@ -10,7 +10,7 @@ BACKUP_DIR="/home/deploy/backups"
 APP_DIR="/home/deploy/apps/Social_100"
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/backup_$DATE.sql"
-COMPOSE_FILE="docker-compose.prod.yml"
+COMPOSE_FILE="docker-compose.yml"
 
 # Colors for output
 RED='\033[0;31m'

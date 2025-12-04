@@ -23,7 +23,7 @@ fi
 
 BACKUP_FILE="$1"
 APP_DIR="/home/deploy/apps/Social_100"
-COMPOSE_FILE="docker-compose.prod.yml"
+COMPOSE_FILE="docker-compose.yml"
 
 # Check if backup file exists
 if [ ! -f "$BACKUP_FILE" ]; then
@@ -71,7 +71,7 @@ if [ $? -eq 0 ]; then
         exit 0
     else
         echo -e "${YELLOW}⚠ Backend might not be fully ready yet${NC}"
-        echo "Check logs: docker-compose -f docker-compose.prod.yml logs backend"
+        echo "Check logs: docker-compose logs backend"
         exit 0
     fi
 else

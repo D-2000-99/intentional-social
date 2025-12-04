@@ -62,3 +62,13 @@ htmlcov/
 *.bak
 *.swp
 
+# Backup files
+backup_*.sql
+backup_*.sql.gz
+*.sql.gz
+
+# Test files
+test.jpg
+test_*.jpg
+test_*.png
+
