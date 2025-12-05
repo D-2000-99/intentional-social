@@ -79,6 +79,25 @@ async def initiate_google_oauth(request: Request):
         )
 
 
+@router.get("/google/callback")
+@rate_limit("10/minute")
+async def google_oauth_callback_get(
+    request: Request,
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """
+    Handle Google OAuth callback GET request (redirect from Google).
+    Redirects to frontend with code/state so frontend can complete the flow.
+    """
+    from app.config import settings
+    
+    # Redirect to frontend with code and state
+    # Frontend will extract these and make POST request with code_verifier
+    frontend_url = f"{settings.FRONTEND_URL}/login?code={code}&state={state}"
+    return RedirectResponse(url=frontend_url)
+
+
 @router.post("/google/callback", response_model=GoogleOAuthCallbackResponse)
 @rate_limit("10/minute")
 async def google_oauth_callback(
@@ -87,7 +106,7 @@ async def google_oauth_callback(
     db: Session = Depends(get_db),
 ):
     """
-    Handle Google OAuth callback.
+    Handle Google OAuth callback POST request (from frontend).
     Verifies the authorization code, exchanges for tokens, and creates/updates user.
     Returns JWT token for our API.
     """
