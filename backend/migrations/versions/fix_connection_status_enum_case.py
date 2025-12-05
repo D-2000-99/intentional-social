@@ -20,18 +20,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Fix enum case to match Python enum (lowercase)."""
-    # First, convert any existing uppercase values to lowercase in the table
-    op.execute("""
-        UPDATE connections 
-        SET status = LOWER(status)::text
-        WHERE status::text != LOWER(status::text)
-    """)
-    
-    # Drop the existing enum type if it exists (this will fail if there are dependencies, so we handle it)
-    # We need to temporarily change the column type
+    # First, convert the column to VARCHAR temporarily to work with the data
     op.execute("""
         ALTER TABLE connections 
         ALTER COLUMN status TYPE VARCHAR USING status::text
+    """)
+    
+    # Convert any existing uppercase values to lowercase in the table
+    op.execute("""
+        UPDATE connections 
+        SET status = LOWER(status)
+        WHERE status != LOWER(status)
     """)
     
     # Drop the old enum type (handle case where it might not exist)
@@ -45,7 +44,7 @@ def upgrade() -> None:
     op.execute("""
         ALTER TABLE connections 
         ALTER COLUMN status TYPE connectionstatus 
-        USING LOWER(status::text)::connectionstatus
+        USING LOWER(status)::connectionstatus
     """)
 
 
