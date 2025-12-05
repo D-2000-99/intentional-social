@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = ""
     S3_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects in S3
     S3_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
+    
+    # Google OAuth configuration
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""
+    FRONTEND_URL: str = "http://localhost:5173"  # For redirects after OAuth
 
     @field_validator('SECRET_KEY')
     @classmethod

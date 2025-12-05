@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 
 class UserBase(BaseModel):
@@ -8,25 +9,20 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str
+    """User creation schema for Google OAuth users."""
+    google_id: str
+    full_name: Optional[str] = None
+    picture_url: Optional[str] = None
 
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        """Validate password strength to prevent weak passwords."""
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
-        if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one number')
-        return v
 
 class UserOut(UserBase):
     id: int
-    email_verified: str
+    google_id: str
+    auth_provider: str
+    full_name: Optional[str] = None
+    picture_url: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     created_at: datetime
 
     class Config:

@@ -1,29 +1,32 @@
-from pydantic import BaseModel, EmailStr, field_validator
-
-class LoginRequest(BaseModel):
-    username_or_email: str
-    password: str
+from pydantic import BaseModel, field_validator
+from typing import Optional
+from app.schemas.user import UserOut
 
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-class SendOTPRequest(BaseModel):
-    email: EmailStr
+class GoogleOAuthCallbackRequest(BaseModel):
+    code: str
+    state: str
+    code_verifier: str
 
-class VerifyOTPRequest(BaseModel):
-    email: EmailStr
-    otp_code: str
+class GoogleOAuthCallbackResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    needs_username: bool = False
+    user: UserOut
 
-class CompleteRegistrationRequest(BaseModel):
-    email: EmailStr
+class UsernameSelectionRequest(BaseModel):
     username: str
-    password: str
-    otp_code: str
     
-    @field_validator('otp_code')
+    @field_validator('username')
     @classmethod
-    def validate_otp_code(cls, v: str) -> str:
-        if not v or len(v) != 6 or not v.isdigit():
-            raise ValueError('Verification code must be a 6-digit number')
-        return v
+    def validate_username(cls, v: str) -> str:
+        if not v or len(v) < 3:
+            raise ValueError('Username must be at least 3 characters long')
+        if len(v) > 50:
+            raise ValueError('Username must be at most 50 characters long')
+        if not v.replace('_', '').replace('-', '').isalnum():
+            raise ValueError('Username can only contain letters, numbers, underscores, and hyphens')
+        return v.lower()  # Normalize to lowercase

@@ -1,23 +1,27 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import logging
+import re
 from functools import wraps
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.core.deps import get_db, get_current_user
-from app.core.security import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
+from app.core.security import create_access_token
+from app.core.oauth import (
+    generate_pkce_pair,
+    generate_state,
+    get_google_authorization_url,
+    exchange_code_for_tokens,
+    verify_google_id_token,
+    get_google_user_info,
 )
-from app.core.email import generate_otp, send_otp_email
 from app.models.user import User
-from app.models.email_verification import EmailVerification
-from app.schemas.user import UserCreate, UserOut
-from app.schemas.auth import Token, LoginRequest, SendOTPRequest, VerifyOTPRequest, CompleteRegistrationRequest
+from app.schemas.user import UserOut, UserCreate
+from app.schemas.auth import Token, GoogleOAuthCallbackRequest, GoogleOAuthCallbackResponse, UsernameSelectionRequest
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 logger = logging.getLogger(__name__)
@@ -42,148 +46,188 @@ def rate_limit(limit_str: str):
     return decorator
 
 
-@router.post("/send-registration-otp")
-@rate_limit("3/hour")
-def send_registration_otp(request: Request, payload: SendOTPRequest, db: Session = Depends(get_db)):
+@router.get("/google/authorize")
+@rate_limit("10/minute")
+async def initiate_google_oauth(request: Request):
     """
-    Send OTP for email verification during registration.
-    Rate limited to 3 requests per hour per IP address.
+    Initiate Google OAuth flow.
+    Generates PKCE challenge and state, then redirects to Google.
+    Frontend should store code_verifier in sessionStorage.
     """
-    # Check if email already registered
-    existing_user = db.query(User).filter(User.email == payload.email).first()
+    try:
+        # Generate PKCE pair
+        code_verifier, code_challenge = generate_pkce_pair()
+        
+        # Generate state for CSRF protection
+        state = generate_state()
+        
+        # Build authorization URL
+        auth_url = get_google_authorization_url(state, code_challenge)
+        
+        # Return URL and verifier to frontend
+        # Frontend will store code_verifier in sessionStorage and redirect to auth_url
+        return {
+            "authorization_url": auth_url,
+            "state": state,
+            "code_verifier": code_verifier,  # Frontend stores this temporarily
+        }
+    except Exception as e:
+        logger.error(f"Error initiating OAuth: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate OAuth flow"
+        )
+
+
+@router.post("/google/callback", response_model=GoogleOAuthCallbackResponse)
+@rate_limit("10/minute")
+async def google_oauth_callback(
+    request: Request,
+    payload: GoogleOAuthCallbackRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Handle Google OAuth callback.
+    Verifies the authorization code, exchanges for tokens, and creates/updates user.
+    Returns JWT token for our API.
+    """
+    try:
+        # Exchange authorization code for tokens
+        tokens = await exchange_code_for_tokens(
+            code=payload.code,
+            code_verifier=payload.code_verifier
+        )
+        
+        # Verify ID token and extract user info
+        id_token_str = tokens.get("id_token")
+        if not id_token_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No ID token received from Google"
+            )
+        
+        # Verify token signature and get user info
+        google_user_info = verify_google_id_token(id_token_str)
+        
+        # Extract user data from Google
+        google_id = google_user_info.get("sub")
+        email = google_user_info.get("email")
+        full_name = google_user_info.get("name")
+        picture_url = google_user_info.get("picture")
+        
+        if not google_id or not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing required information from Google"
+            )
+        
+        # Check if user exists by google_id
+        user = db.query(User).filter(User.google_id == google_id).first()
+        
+        if user:
+            # Existing user - update info if needed
+            if full_name and not user.full_name:
+                user.full_name = full_name
+            if picture_url and not user.picture_url:
+                user.picture_url = picture_url
+            db.commit()
+            db.refresh(user)
+        else:
+            # New user - check if email already exists (shouldn't happen, but safety check)
+            existing_by_email = db.query(User).filter(User.email == email).first()
+            if existing_by_email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered with different account"
+                )
+            
+            # Create user but username will be set later via username selection endpoint
+            # For now, use a temporary username based on email
+            temp_username = email.split("@")[0].lower()[:50]
+            # Ensure uniqueness
+            counter = 1
+            base_username = temp_username
+            while db.query(User).filter(User.username == temp_username).first():
+                temp_username = f"{base_username}{counter}"
+                counter += 1
+            
+            user = User(
+                email=email,
+                username=temp_username,  # Temporary, user will set proper username
+                google_id=google_id,
+                auth_provider="google",
+                full_name=full_name,
+                picture_url=picture_url,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            logger.info(f"New Google OAuth user created: {user.username} ({user.email})")
+        
+        # Generate our JWT token
+        token = create_access_token(subject=user.id)
+        
+        # Check if user needs to set username
+        # Temporary usernames are based on email prefix, so check if username matches that pattern
+        email_prefix = email.split("@")[0].lower()
+        is_temp_username = (
+            user.username == email_prefix or
+            (user.username.startswith(email_prefix) and 
+             re.match(f"^{re.escape(email_prefix)}\\d+$", user.username) is not None)
+        )
+        
+        # Also check if username is very short (likely temporary)
+        needs_username = is_temp_username or len(user.username) < 4
+        
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "needs_username": needs_username,
+            "user": UserOut.model_validate(user),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in OAuth callback: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OAuth callback failed: {str(e)}"
+        )
+
+
+@router.post("/username/select")
+@rate_limit("5/minute")
+def select_username(
+    request: Request,
+    payload: UsernameSelectionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Allow user to set their username after Google OAuth registration.
+    Username must be unique and meet validation requirements.
+    """
+    # Check if username is already taken
+    existing_user = db.query(User).filter(
+        User.username == payload.username,
+        User.id != current_user.id
+    ).first()
+    
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail="Username already taken"
         )
     
-    # Generate OTP
-    otp_code = generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
-    
-    # Invalidate any existing unverified OTPs for this email
-    db.query(EmailVerification).filter(
-        EmailVerification.email == payload.email,
-        EmailVerification.verified_at.is_(None),
-    ).update({"verified_at": datetime.now(timezone.utc)})
-    
-    # Create verification record
-    verification = EmailVerification(
-        user_id=None,  # Will be set when user registers
-        email=payload.email,
-        otp_code=otp_code,
-        expires_at=expires_at,
-    )
-    
-    db.add(verification)
+    # Update username
+    current_user.username = payload.username
     db.commit()
+    db.refresh(current_user)
     
-    # Send email
-    if not send_otp_email(payload.email, otp_code):
-        logger.error(f"Failed to send OTP email to {payload.email}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send verification email. Please try again later.",
-        )
-    
-    logger.info(f"Registration OTP sent to {payload.email}")
-    return {"detail": "Verification code sent to your email"}
-
-
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-@rate_limit("3/hour")
-def complete_registration(request: Request, payload: CompleteRegistrationRequest, db: Session = Depends(get_db)):
-    """
-    Complete registration by verifying OTP and creating account.
-    Requires valid OTP code sent to email.
-    """
-    # Check if email already registered
-    if db.query(User).filter(User.email == payload.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
-    # Check if username already taken
-    if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken",
-        )
-    
-    # Verify OTP
-    verification = (
-        db.query(EmailVerification)
-        .filter(
-            EmailVerification.email == payload.email,
-            EmailVerification.otp_code == payload.otp_code,
-            EmailVerification.expires_at > datetime.now(timezone.utc),
-            EmailVerification.verified_at.is_(None),
-        )
-        .first()
-    )
-    
-    if not verification:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification code",
-        )
-    
-    # Validate password using schema validation
-    # OTP validation is handled by CompleteRegistrationRequest schema
-    from app.schemas.user import UserCreate
-    try:
-        UserCreate(email=payload.email, username=payload.username, password=payload.password)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    
-    # Create user
-    hashed = get_password_hash(payload.password)
-    new_user = User(
-        email=payload.email,
-        username=payload.username,
-        hashed_password=hashed,
-        email_verified="true",
-    )
-
-    db.add(new_user)
-    db.flush()  # Get user ID without committing
-    
-    # Mark verification as used
-    verification.user_id = new_user.id
-    verification.verified_at = datetime.now(timezone.utc)
-    
-    db.commit()
-    db.refresh(new_user)
-
-    logger.info(f"New user registered: {new_user.username} ({new_user.email})")
-    return new_user
-
-
-@router.post("/login", response_model=Token)
-@rate_limit("5/minute")
-def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
-    user = (
-        db.query(User)
-        .filter(
-            (User.email == payload.username_or_email)
-            | (User.username == payload.username_or_email)
-        )
-        .first()
-    )
-
-    if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect credentials",
-        )
-
-    token = create_access_token(subject=user.id)
-
-    return Token(access_token=token)
+    logger.info(f"User {current_user.id} set username to {payload.username}")
+    return UserOut.model_validate(current_user)
 
 
 @router.get("/users", response_model=list[UserOut])
@@ -222,101 +266,3 @@ def search_users(
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current authenticated user's details"""
     return current_user
-
-
-@router.post("/send-verification-email")
-@rate_limit("3/hour")
-def send_verification_email(
-    request: Request,
-    payload: SendOTPRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Send OTP to user's email for verification."""
-    
-    # Verify email belongs to current user
-    if current_user.email != payload.email:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only verify your own email address",
-        )
-    
-    # Check if already verified
-    if current_user.email_verified == "true":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already verified",
-        )
-    
-    # Generate OTP
-    otp_code = generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
-    
-    # Invalidate any existing OTPs for this user
-    db.query(EmailVerification).filter(
-        EmailVerification.user_id == current_user.id,
-        EmailVerification.verified_at.is_(None),
-    ).update({"verified_at": datetime.now(timezone.utc)})
-    
-    # Create new verification record
-    verification = EmailVerification(
-        user_id=current_user.id,
-        email=payload.email,
-        otp_code=otp_code,
-        expires_at=expires_at,
-    )
-    
-    db.add(verification)
-    db.commit()
-    
-    # Send email
-    if send_otp_email(payload.email, otp_code):
-        return {"detail": "Verification email sent"}
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send verification email",
-        )
-
-
-@router.post("/verify-email")
-def verify_email(
-    payload: VerifyOTPRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Verify email using OTP code."""
-    
-    # Verify email belongs to current user
-    if current_user.email != payload.email:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only verify your own email address",
-        )
-    
-    # Find valid OTP
-    verification = (
-        db.query(EmailVerification)
-        .filter(
-            EmailVerification.user_id == current_user.id,
-            EmailVerification.email == payload.email,
-            EmailVerification.otp_code == payload.otp_code,
-            EmailVerification.expires_at > datetime.now(timezone.utc),
-            EmailVerification.verified_at.is_(None),
-        )
-        .first()
-    )
-    
-    if not verification:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP code",
-        )
-    
-    # Mark as verified
-    verification.verified_at = datetime.now(timezone.utc)
-    current_user.email_verified = "true"
-    
-    db.commit()
-    
-    return {"detail": "Email verified successfully"}

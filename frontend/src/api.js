@@ -73,14 +73,15 @@ export const api = {
     }
   },
 
-  login: (username_or_email, password) =>
-    api.request("/auth/login", "POST", { username_or_email, password }),
+  // Google OAuth
+  initiateGoogleOAuth: () =>
+    api.request("/auth/google/authorize", "GET"),
 
-  sendRegistrationOTP: (email) =>
-    api.request("/auth/send-registration-otp", "POST", { email }),
+  googleOAuthCallback: (code, state, codeVerifier) =>
+    api.request("/auth/google/callback", "POST", { code, state, code_verifier: codeVerifier }),
 
-  register: (email, username, password, otpCode) =>
-    api.request("/auth/register", "POST", { email, username, password, otp_code: otpCode }),
+  selectUsername: (token, username) =>
+    api.request("/auth/username/select", "POST", { username }, token),
 
   getFeed: (token, skip = 0, limit = 20) =>
     api.request(`/feed/?skip=${skip}&limit=${limit}`, "GET", null, token),
