@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import imageCompression from "browser-image-compression";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -211,7 +212,12 @@ export default function Feed() {
                     posts.map((post) => (
                         <article key={post.id} className="post-card">
                             <div className="post-meta">
-                                <span className="author-name">{post.author.display_name || post.author.full_name || post.author.username}</span>
+                                <Link 
+                                    to={`/profile/${post.author.username}`}
+                                    className="author-name author-link"
+                                >
+                                    {post.author.display_name || post.author.full_name || post.author.username}
+                                </Link>
                                 <span className="post-date">
                                     {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </span>

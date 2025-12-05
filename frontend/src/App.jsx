@@ -120,6 +120,16 @@ function AppRoutes() {
                     </PrivateRoute>
                 }
             />
+            <Route
+                path="/profile/:username"
+                element={
+                    <PrivateRoute>
+                        <Layout>
+                            <Profile />
+                        </Layout>
+                    </PrivateRoute>
+                }
+            />
         </Routes>
     );
 }

@@ -1,5 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional, List
+from app.schemas.tag import TagOut
 
 class PostCreate(BaseModel):
     content: str
@@ -10,6 +12,8 @@ class PostCreate(BaseModel):
 class AuthorOut(BaseModel):
     id: int
     username: str
+    display_name: Optional[str] = None
+    full_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -23,6 +27,7 @@ class PostOut(BaseModel):
     photo_urls_presigned: list[str] = []  # Pre-signed URLs for client access (generated on demand)
     created_at: datetime
     author: AuthorOut  # Include author details
+    audience_tags: List[TagOut] = []  # Tags used for audience filtering
 
     class Config:
         from_attributes = True

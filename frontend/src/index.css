@@ -551,6 +551,16 @@ button:focus-visible,
   color: var(--text-main);
 }
 
+.author-link {
+  text-decoration: none;
+  color: var(--text-main);
+  transition: color 0.2s;
+}
+
+.author-link:hover {
+  color: var(--olive-primary);
+}
+
 .author {
   font-family: 'Lora', serif;
   font-weight: 600;
@@ -1252,4 +1262,26 @@ button:focus-visible,
 
 .user-profile:hover {
   background-color: var(--paper-color);
+}
+
+.username-link {
+  text-decoration: none;
+  color: var(--text-main);
+  transition: color 0.2s;
+}
+
+.username-link:hover {
+  color: var(--olive-primary);
+}
+
+.profile-posts-section {
+  margin-top: 40px;
+}
+
+.profile-posts-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: var(--text-main);
+  font-family: 'Lora', serif;
 }

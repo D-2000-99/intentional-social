@@ -291,6 +291,34 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     return user_out
 
 
+@router.get("/user/{username}", response_model=UserOut)
+def get_user_by_username(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get user profile by username"""
+    user = db.query(User).filter(User.username == username).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user_out = UserOut.model_validate(user)
+    
+    # If avatar_url is an S3 key, generate presigned URL
+    if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+        try:
+            user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
+        except Exception as e:
+            logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
+            # Keep the S3 key if presigned URL generation fails
+    
+    return user_out
+
+
 @router.put("/me/avatar", response_model=UserOut)
 @rate_limit("10/minute")
 async def update_user_avatar(

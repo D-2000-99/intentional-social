@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import TagPill from "../components/TagPill";
@@ -92,7 +93,12 @@ export default function Connections() {
                     {connections.map((conn) => (
                         <div key={conn.id} className="user-card">
                             <div className="user-info">
-                                <span className="username">@{conn.other_user_username}</span>
+                                <Link 
+                                    to={`/profile/${conn.other_user_username}`}
+                                    className="username username-link"
+                                >
+                                    @{conn.other_user_username}
+                                </Link>
                                 <span className="email">{conn.other_user_email}</span>
                                 <span className="date">
                                     Connected {new Date(conn.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

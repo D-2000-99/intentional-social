@@ -6,6 +6,7 @@ from app.core.deps import get_db, get_current_user
 from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url, delete_photo_from_s3
 from app.models.post import Post
 from app.models.post_audience_tag import PostAudienceTag
+from app.models.tag import Tag
 from app.schemas.post import PostCreate, PostOut
 from app.models.user import User
 
@@ -149,6 +150,19 @@ async def create_post(
         except Exception:
             photo_urls_presigned = []
     
+    # Get audience tags
+    audience_tags = []
+    if new_post.audience_type == "tags":
+        post_audience_tags = (
+            db.query(PostAudienceTag)
+            .filter(PostAudienceTag.post_id == new_post.id)
+            .all()
+        )
+        tag_ids = [pat.tag_id for pat in post_audience_tags]
+        if tag_ids:
+            tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+            audience_tags = tags
+    
     # Return PostOut with pre-signed URLs
     return PostOut(
         id=new_post.id,
@@ -158,7 +172,8 @@ async def create_post(
         photo_urls=new_post.photo_urls or [],
         photo_urls_presigned=photo_urls_presigned,
         created_at=new_post.created_at,
-        author=new_post.author
+        author=new_post.author,
+        audience_tags=audience_tags
     )
 
 
@@ -191,6 +206,19 @@ def get_my_posts(
                 logger.error(f"Photo URLs: {post.photo_urls}")
                 photo_urls_presigned = []
         
+        # Get audience tags
+        audience_tags = []
+        if post.audience_type == "tags":
+            post_audience_tags = (
+                db.query(PostAudienceTag)
+                .filter(PostAudienceTag.post_id == post.id)
+                .all()
+            )
+            tag_ids = [pat.tag_id for pat in post_audience_tags]
+            if tag_ids:
+                tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+                audience_tags = tags
+        
         post_dict = {
             "id": post.id,
             "author_id": post.author_id,
@@ -199,7 +227,75 @@ def get_my_posts(
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
             "created_at": post.created_at,
-            "author": post.author
+            "author": post.author,
+            "audience_tags": audience_tags
+        }
+        result.append(PostOut(**post_dict))
+    
+    return result
+
+
+@router.get("/user/{user_id}", response_model=list[PostOut])
+def get_user_posts(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all posts by a specific user"""
+    # Verify user exists
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    posts = (
+        db.query(Post)
+        .options(joinedload(Post.author))
+        .filter(Post.author_id == user_id)
+        .order_by(Post.created_at.desc())
+        .all()
+    )
+    
+    # Convert to PostOut with pre-signed URLs
+    result = []
+    for post in posts:
+        photo_urls_presigned = []
+        if post.photo_urls:
+            try:
+                photo_urls_presigned = generate_presigned_urls(post.photo_urls)
+            except Exception as e:
+                # Log error for debugging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
+                logger.error(f"Photo URLs: {post.photo_urls}")
+                photo_urls_presigned = []
+        
+        # Get audience tags
+        audience_tags = []
+        if post.audience_type == "tags":
+            post_audience_tags = (
+                db.query(PostAudienceTag)
+                .filter(PostAudienceTag.post_id == post.id)
+                .all()
+            )
+            tag_ids = [pat.tag_id for pat in post_audience_tags]
+            if tag_ids:
+                tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+                audience_tags = tags
+        
+        post_dict = {
+            "id": post.id,
+            "author_id": post.author_id,
+            "content": post.content,
+            "audience_type": post.audience_type,
+            "photo_urls": post.photo_urls or [],
+            "photo_urls_presigned": photo_urls_presigned,
+            "created_at": post.created_at,
+            "author": post.author,
+            "audience_tags": audience_tags
         }
         result.append(PostOut(**post_dict))
     

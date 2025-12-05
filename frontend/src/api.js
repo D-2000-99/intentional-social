@@ -243,4 +243,10 @@ export const api = {
         return data;
       });
   },
+
+  getUserByUsername: (token, username) =>
+    api.request(`/auth/user/${username}`, "GET", null, token),
+
+  getUserPosts: (token, userId) =>
+    api.request(`/posts/user/${userId}`, "GET", null, token),
 };

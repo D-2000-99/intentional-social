@@ -9,6 +9,7 @@ from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
 from app.models.connection_tag import ConnectionTag
 from app.models.post_audience_tag import PostAudienceTag
+from app.models.tag import Tag
 from app.schemas.post import PostOut
 
 router = APIRouter(prefix="/feed", tags=["Feed"])
@@ -163,6 +164,19 @@ def get_feed(
                 # Return empty list if pre-signed URL generation fails
                 photo_urls_presigned = []
         
+        # Get audience tags
+        audience_tags = []
+        if post.audience_type == "tags":
+            post_audience_tags = (
+                db.query(PostAudienceTag)
+                .filter(PostAudienceTag.post_id == post.id)
+                .all()
+            )
+            tag_ids = [pat.tag_id for pat in post_audience_tags]
+            if tag_ids:
+                tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+                audience_tags = tags
+        
         # Create PostOut with pre-signed URLs
         post_dict = {
             "id": post.id,
@@ -172,7 +186,8 @@ def get_feed(
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
             "created_at": post.created_at,
-            "author": post.author
+            "author": post.author,
+            "audience_tags": audience_tags
         }
         result.append(PostOut(**post_dict))
 
