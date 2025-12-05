@@ -20,11 +20,17 @@ def upgrade() -> None:
     """Migrate to Google OAuth - remove password system and clear all data."""
     
     # Clear all existing data (fresh start)
+    # Delete in order to respect foreign key constraints
     op.execute("DELETE FROM connection_tags")
     op.execute("DELETE FROM post_audience_tags")
     op.execute("DELETE FROM tags")
     op.execute("DELETE FROM connections")
     op.execute("DELETE FROM posts")
+    
+    # Delete email_verifications first (before users due to foreign key)
+    op.execute("DELETE FROM email_verifications")
+    
+    # Now safe to delete users
     op.execute("DELETE FROM users")
     
     # Drop email_verifications table (no longer needed)
