@@ -140,7 +140,7 @@ textarea::placeholder {
 }
 
 .app-layout main {
-  padding-top: 0;
+  padding-top: 80px; /* Account for fixed navbar height */
 }
 
 .container {
@@ -154,7 +154,6 @@ nav {
   background-color: var(--bg-color);
   border-bottom: 1px solid var(--color-divider);
   padding: var(--spacing-small) var(--spacing-medium);
-  margin-bottom: 40px;
   position: fixed;
   top: 0;
   left: 0;
