@@ -226,6 +226,54 @@ def generate_presigned_urls(s3_keys: List[str], expiration: Optional[int] = None
     return [generate_presigned_url(key, expiration) for key in s3_keys]
 
 
+def upload_avatar_to_s3(file_content: bytes, user_id: int, file_extension: str = "jpg") -> str:
+    """
+    Upload an avatar image to S3 and return the S3 key.
+    
+    Args:
+        file_content: Raw image bytes
+        user_id: ID of the user uploading the avatar
+        file_extension: File extension (jpg, png, webp)
+    
+    Returns:
+        S3 key (path) of the uploaded avatar
+    """
+    client = get_s3_client()
+    
+    # Generate unique filename: users/avatars/{user_id}/{uuid}.{ext}
+    unique_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow().strftime("%Y%m%d")
+    s3_key = f"{settings.S3_AVATAR_PREFIX}/{user_id}/{timestamp}_{unique_id}.{file_extension}"
+    
+    try:
+        # Upload to S3 with proper content type
+        content_type_map = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'webp': 'image/webp'
+        }
+        content_type = content_type_map.get(file_extension.lower(), 'image/jpeg')
+        
+        client.put_object(
+            Bucket=settings.S3_BUCKET_NAME,
+            Key=s3_key,
+            Body=file_content,
+            ContentType=content_type,
+            Metadata={
+                'user_id': str(user_id),
+                'uploaded_at': datetime.utcnow().isoformat()
+            }
+        )
+        
+        logger.info(f"Successfully uploaded avatar to S3: {s3_key}")
+        return s3_key
+        
+    except ClientError as e:
+        logger.error(f"Error uploading avatar to S3: {str(e)}")
+        raise Exception(f"Failed to upload avatar to S3: {str(e)}")
+
+
 def delete_photo_from_s3(s3_key: str) -> bool:
     """
     Delete a photo from S3.

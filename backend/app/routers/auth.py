@@ -8,6 +8,7 @@ from sqlalchemy import or_
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from fastapi import UploadFile, File, Form
 from app.core.deps import get_db, get_current_user
 from app.core.security import create_access_token
 from app.core.oauth import (
@@ -18,6 +19,8 @@ from app.core.oauth import (
     verify_google_id_token,
     get_google_user_info,
 )
+from app.core.s3 import validate_image, upload_avatar_to_s3, generate_presigned_url, delete_photo_from_s3
+from app.config import settings
 from app.models.user import User
 from app.schemas.user import UserOut, UserCreate
 from app.schemas.auth import Token, GoogleOAuthCallbackRequest, GoogleOAuthCallbackResponse, UsernameSelectionRequest
@@ -275,4 +278,90 @@ def search_users(
 @router.get("/me", response_model=UserOut)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current authenticated user's details"""
-    return current_user
+    user_out = UserOut.model_validate(current_user)
+    
+    # If avatar_url is an S3 key, generate presigned URL
+    if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+        try:
+            user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
+        except Exception as e:
+            logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
+            # Keep the S3 key if presigned URL generation fails
+    
+    return user_out
+
+
+@router.put("/me/avatar", response_model=UserOut)
+@rate_limit("10/minute")
+async def update_user_avatar(
+    avatar: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update user's avatar image.
+    Accepts multipart/form-data with avatar file.
+    """
+    try:
+        # Read file content
+        file_content = await avatar.read()
+        
+        # Validate image
+        is_valid, error_msg, image_info = validate_image(file_content, max_size_mb=0.2)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Avatar validation failed: {error_msg}"
+            )
+        
+        # Determine file extension from content type or filename
+        file_extension = "jpg"  # default
+        if avatar.filename:
+            if avatar.filename.lower().endswith(('.png',)):
+                file_extension = "png"
+            elif avatar.filename.lower().endswith(('.webp',)):
+                file_extension = "webp"
+        elif image_info and image_info.get('format'):
+            format_lower = image_info['format'].lower()
+            if format_lower == 'png':
+                file_extension = "png"
+            elif format_lower == 'webp':
+                file_extension = "webp"
+        
+        # Delete old avatar from S3 if it exists and is an S3 URL
+        if current_user.avatar_url:
+            # Check if it's an S3 key (starts with our prefix)
+            if current_user.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+                try:
+                    delete_photo_from_s3(current_user.avatar_url)
+                except Exception as e:
+                    logger.warning(f"Failed to delete old avatar from S3: {str(e)}")
+        
+        # Upload new avatar to S3
+        s3_key = upload_avatar_to_s3(file_content, current_user.id, file_extension)
+        
+        # Generate presigned URL for the avatar
+        avatar_url = generate_presigned_url(s3_key)
+        
+        # Update user's avatar_url (store the S3 key, not the presigned URL)
+        # We'll generate presigned URLs when needed
+        current_user.avatar_url = s3_key
+        db.commit()
+        db.refresh(current_user)
+        
+        logger.info(f"User {current_user.id} updated avatar to {s3_key}")
+        
+        # Return user with presigned URL in avatar_url for immediate use
+        user_out = UserOut.model_validate(current_user)
+        # Override avatar_url with presigned URL for response
+        user_out.avatar_url = avatar_url
+        return user_out
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating avatar: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update avatar: {str(e)}"
+        )

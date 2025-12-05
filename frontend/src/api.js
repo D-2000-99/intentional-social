@@ -216,4 +216,31 @@ export const api = {
 
   removeTagFromConnection: (token, connectionId, tagId) =>
     api.request(`/connections/${connectionId}/tags/${tagId}`, "DELETE", null, token),
+
+  // User profile
+  updateAvatar: async (token, avatarFile) => {
+    const formData = new FormData();
+    formData.append("avatar", avatarFile);
+
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      // Don't set Content-Type - browser will set it with boundary for multipart/form-data
+    };
+
+    return fetch(`${API_URL}/auth/me/avatar`, {
+      method: "PUT",
+      headers,
+      body: formData,
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          const errorMessage = typeof data.detail === 'string'
+            ? data.detail
+            : (data.detail?.message || JSON.stringify(data.detail) || "API Error");
+          throw new Error(errorMessage);
+        }
+        return data;
+      });
+  },
 };

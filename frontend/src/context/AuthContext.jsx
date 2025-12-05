@@ -48,8 +48,14 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem("token");
     };
 
+    const refreshUser = async () => {
+        if (token) {
+            await fetchUserDetails();
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ token, user, login, logout }}>
+        <AuthContext.Provider value={{ token, user, login, logout, refreshUser }}>
             {children}
         </AuthContext.Provider>
     );

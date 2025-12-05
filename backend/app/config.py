@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = ""
     S3_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects in S3
+    S3_AVATAR_PREFIX: str = "users/avatars"  # Prefix for avatar objects in S3
     S3_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
     
     # Google OAuth configuration

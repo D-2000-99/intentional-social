@@ -7,6 +7,7 @@ import Search from "./pages/Search";
 import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import MyPosts from "./pages/MyPosts";
+import Profile from "./pages/Profile";
 import "./index.css";
 
 const PrivateRoute = ({ children }) => {
@@ -15,7 +16,7 @@ const PrivateRoute = ({ children }) => {
 };
 
 const Layout = ({ children }) => {
-    const { logout, user } = useAuth();
+    const { user } = useAuth();
     const location = useLocation();
     
     const isActive = (path) => location.pathname === path;
@@ -31,13 +32,12 @@ const Layout = ({ children }) => {
                         <Link to="/search" className={isActive("/search") ? "active" : ""}>Search</Link>
                         <Link to="/requests" className={isActive("/requests") ? "active" : ""}>Requests</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
-                        <div className="user-profile">
+                        <Link to="/profile" className="user-profile">
                             <span className="user-profile__name">
                                 {user?.display_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || user?.username}
                             </span>
                             <span className="user-profile__username">@{user?.username}</span>
-                        </div>
-                        <button onClick={logout} className="logout-btn">Logout</button>
+                        </Link>
                     </div>
                 </div>
             </nav>
@@ -106,6 +106,16 @@ function AppRoutes() {
                     <PrivateRoute>
                         <Layout>
                             <People />
+                        </Layout>
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/profile"
+                element={
+                    <PrivateRoute>
+                        <Layout>
+                            <Profile />
                         </Layout>
                     </PrivateRoute>
                 }
