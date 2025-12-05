@@ -3,9 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const api = {
   async request(endpoint, method = "GET", body = null, token = null) {
-    const headers = {
-      "Content-Type": "application/json",
-    };
+    const headers = {};
 
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -16,24 +14,57 @@ export const api = {
       headers,
     };
 
-    if (body) {
+    // For POST/PUT requests, always send a body (even if empty) to avoid issues
+    if (method === "POST" || method === "PUT") {
+      headers["Content-Type"] = "application/json";
+      config.body = JSON.stringify(body || {});
+    } else if (body) {
+      // For other methods, only set Content-Type if we have a body
+      headers["Content-Type"] = "application/json";
       config.body = JSON.stringify(body);
     }
 
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, config);
-      const data = await response.json();
+      const url = `${API_URL}${endpoint}`;
+      const response = await fetch(url, config);
 
+      // Parse response body as JSON (our API always returns JSON)
+      // Clone response first so we can try both JSON and text if needed
+      const clonedResponse = response.clone();
+      let data;
+      
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails, try to get text for better error message
+        try {
+          const text = await clonedResponse.text();
+          throw new Error(`Invalid JSON response from ${url}. Server returned: ${text.substring(0, 200)}`);
+        } catch (textError) {
+          throw new Error(`Failed to parse response from ${url} as JSON`);
+        }
+      }
+
+      // Handle error responses
       if (!response.ok) {
-        // Handle both string and object error details
         const errorMessage = typeof data.detail === 'string'
           ? data.detail
-          : (data.detail?.message || JSON.stringify(data.detail) || "API Error");
+          : (data.detail?.message || JSON.stringify(data.detail) || `Server error (${response.status})`);
         throw new Error(errorMessage);
       }
 
       return data;
     } catch (error) {
+      // Handle network errors specifically (fetch fails before getting a response)
+      if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        throw new Error(`Network error: Unable to reach the server at ${API_URL}${endpoint}. Please check that the backend is running and accessible. If using HTTPS frontend with HTTP backend, you may need to set up SSL on your backend.`);
+      }
+      
+      // Handle JSON parsing errors
+      if (error.message && error.message.includes('JSON')) {
+        throw error;
+      }
+      
       // Ensure we always throw an Error with a string message
       if (error instanceof Error) {
         throw error;

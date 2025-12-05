@@ -343,9 +343,13 @@ sudo nano /etc/nginx/sites-available/intentional-social
 
 ```nginx
 # Backend API
+# Replace with your domain:
+# - DuckDNS: yourname.duckdns.org
+# - Custom domain: api.intentionalsocial.org (or api.yourdomain.com)
 server {
     listen 80;
-    server_name api.yourdomain.com YOUR_VPS_IP;
+    server_name api.intentionalsocial.org YOUR_VPS_IP;
+    # Or for DuckDNS: server_name yourname.duckdns.org YOUR_VPS_IP;
 
     # Increase body size for photo uploads
     client_max_body_size 10M;
@@ -428,7 +432,32 @@ sudo certbot --nginx -d api.yourdomain.com
 
 **If you don't have a domain:**
 - You can use the VPS IP, but SSL won't work (certificates require domain names)
+- **Using DuckDNS (Free)**: You can set up SSL with a free DuckDNS subdomain
 - For production, you should get a domain ($10-15/year from Namecheap, Google Domains, etc.)
+
+**If using DuckDNS:**
+```bash
+# Replace with your DuckDNS subdomain (e.g., yourname.duckdns.org)
+sudo certbot --nginx -d yourname.duckdns.org
+
+# Follow the prompts:
+# - Enter your email
+# - Agree to terms
+# - Choose whether to redirect HTTP to HTTPS (recommended: Yes)
+```
+
+**If using your own domain (e.g., intentionalsocial.org):**
+```bash
+# Replace with your domain (e.g., api.intentionalsocial.org)
+sudo certbot --nginx -d api.intentionalsocial.org
+
+# Follow the prompts:
+# - Enter your email
+# - Agree to terms
+# - Choose whether to redirect HTTP to HTTPS (recommended: Yes)
+```
+
+**Note**: Make sure your domain/subdomain is pointing to your VPS IP before running certbot.
 
 **Auto-renewal (already set up by Certbot):**
 ```bash
