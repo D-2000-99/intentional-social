@@ -12,6 +12,7 @@ export default function Profile() {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [deletingPostId, setDeletingPostId] = useState(null);
     const [error, setError] = useState(null);
     const fileInputRef = useRef(null);
 
@@ -58,6 +59,29 @@ export default function Profile() {
             fetchPosts();
         }
     }, [profileUser, token]);
+
+    const handleDeletePost = async (postId) => {
+        // Confirm deletion
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this post? This action cannot be undone."
+        );
+        
+        if (!confirmed) {
+            return;
+        }
+
+        setDeletingPostId(postId);
+        try {
+            await api.deletePost(token, postId);
+            // Remove the post from the list
+            setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+        } catch (err) {
+            console.error("Failed to delete post", err);
+            alert(`Failed to delete post: ${err.message}`);
+        } finally {
+            setDeletingPostId(null);
+        }
+    };
 
     // Get avatar URL - prefer avatar_url (user-uploaded) over picture_url (Google)
     // The backend should return presigned URLs for S3 avatars
@@ -211,9 +235,22 @@ export default function Profile() {
                                     <span className="author-name">
                                         {post.author.display_name || post.author.full_name || post.author.username}
                                     </span>
-                                    <span className="post-date">
-                                        {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </span>
+                                    <div className="post-meta-actions">
+                                        <span className="post-date">
+                                            {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                        {isOwnProfile && (
+                                            <button
+                                                onClick={() => handleDeletePost(post.id)}
+                                                disabled={deletingPostId === post.id}
+                                                className="delete-post-button"
+                                                title="Delete post"
+                                                aria-label="Delete post"
+                                            >
+                                                {deletingPostId === post.id ? "Deleting..." : "🗑️"}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 {post.content && (
                                     <div className="post-content">

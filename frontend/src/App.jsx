@@ -6,7 +6,6 @@ import People from "./pages/People";
 import Search from "./pages/Search";
 import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
-import MyPosts from "./pages/MyPosts";
 import Profile from "./pages/Profile";
 import "./index.css";
 
@@ -28,7 +27,6 @@ const Layout = ({ children }) => {
                     <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Feed</Link>
-                        <Link to="/my-posts" className={isActive("/my-posts") ? "active" : ""}>My Posts</Link>
                         <Link to="/search" className={isActive("/search") ? "active" : ""}>Search</Link>
                         <Link to="/requests" className={isActive("/requests") ? "active" : ""}>Requests</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
@@ -56,16 +54,6 @@ function AppRoutes() {
                     <PrivateRoute>
                         <Layout>
                             <Feed />
-                        </Layout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path="/my-posts"
-                element={
-                    <PrivateRoute>
-                        <Layout>
-                            <MyPosts />
                         </Layout>
                     </PrivateRoute>
                 }
