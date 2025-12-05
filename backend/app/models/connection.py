@@ -20,7 +20,7 @@ class Connection(Base):
     requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(
-        SQLEnum(ConnectionStatus),
+        SQLEnum(ConnectionStatus, native_enum=True),
         default=ConnectionStatus.PENDING,
         nullable=False
     )
