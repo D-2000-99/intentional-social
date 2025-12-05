@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
@@ -20,6 +20,8 @@ const Layout = ({ children }) => {
     const location = useLocation();
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const [lastScrollY, setLastScrollY] = useState(0);
+    const navRef = useRef(null);
+    const mainRef = useRef(null);
     
     const isActive = (path) => location.pathname === path;
 
@@ -43,6 +45,28 @@ const Layout = ({ children }) => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, [lastScrollY]);
 
+    // Dynamically set main padding based on navbar height
+    useEffect(() => {
+        const updateMainPadding = () => {
+            if (navRef.current && mainRef.current) {
+                const navHeight = navRef.current.offsetHeight;
+                mainRef.current.style.paddingTop = `${navHeight}px`;
+            }
+        };
+
+        // Update on mount and resize
+        updateMainPadding();
+        window.addEventListener('resize', updateMainPadding);
+        
+        // Also update after a short delay to account for any dynamic content
+        const timeoutId = setTimeout(updateMainPadding, 100);
+
+        return () => {
+            window.removeEventListener('resize', updateMainPadding);
+            clearTimeout(timeoutId);
+        };
+    }, [user]); // Recalculate when user data changes (affects navbar content)
+
     // Get avatar URL
     const getAvatarUrl = () => {
         if (user?.avatar_url) {
@@ -56,7 +80,7 @@ const Layout = ({ children }) => {
     
     return (
         <div className="app-layout">
-            <nav className={isNavbarVisible ? 'nav-visible' : 'nav-hidden'}>
+            <nav ref={navRef} className={isNavbarVisible ? 'nav-visible' : 'nav-hidden'}>
                 <div className="nav-content">
                     <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
                     <div className="nav-links">
@@ -86,7 +110,7 @@ const Layout = ({ children }) => {
                     </div>
                 </div>
             </nav>
-            <main>{children}</main>
+            <main ref={mainRef}>{children}</main>
         </div>
     );
 };
