@@ -140,7 +140,7 @@ textarea::placeholder {
 }
 
 .app-layout main {
-  padding-top: 64px; /* Default - will be overridden by JS for dynamic sizing */
+  padding-top: 96px; /* Default - will be overridden by JS for dynamic sizing + extra spacing */
   transition: padding-top 0.2s ease;
 }
 
@@ -807,7 +807,7 @@ button:focus-visible,
   }
 
   .app-layout main {
-    padding-top: 56px; /* Smaller navbar height on mobile */
+    padding-top: 80px; /* Smaller navbar height on mobile + extra spacing */
   }
 
   .app-layout {

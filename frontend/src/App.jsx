@@ -45,12 +45,13 @@ const Layout = ({ children }) => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, [lastScrollY]);
 
-    // Dynamically set main padding based on navbar height
+    // Dynamically set main padding based on navbar height + extra spacing
     useEffect(() => {
         const updateMainPadding = () => {
             if (navRef.current && mainRef.current) {
                 const navHeight = navRef.current.offsetHeight;
-                mainRef.current.style.paddingTop = `${navHeight}px`;
+                const extraSpacing = window.innerWidth <= 600 ? 24 : 32; // More spacing on desktop
+                mainRef.current.style.paddingTop = `${navHeight + extraSpacing}px`;
             }
         };
 
