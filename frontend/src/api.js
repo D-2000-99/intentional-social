@@ -128,6 +128,44 @@ export const api = {
   getMyPosts: (token) =>
     api.request("/posts/me", "GET", null, token),
 
+  deletePost: async (token, postId) => {
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+    };
+
+    const response = await fetch(`${API_URL}/posts/${postId}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    // Handle 204 No Content (successful deletion with no body)
+    if (response.status === 204) {
+      return null;
+    }
+
+    // Handle error responses
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { detail: `Server error (${response.status})` };
+      }
+      
+      const errorMessage = typeof errorData.detail === 'string'
+        ? errorData.detail
+        : (errorData.detail?.message || JSON.stringify(errorData.detail) || `Server error (${response.status})`);
+      throw new Error(errorMessage);
+    }
+
+    // Try to parse JSON for other status codes
+    try {
+      return await response.json();
+    } catch (e) {
+      return null;
+    }
+  },
+
   getUsers: (token) =>
     api.request("/auth/users", "GET", null, token),
 

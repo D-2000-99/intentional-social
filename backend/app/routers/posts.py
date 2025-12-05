@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.core.deps import get_db, get_current_user
-from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url
+from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url, delete_photo_from_s3
 from app.models.post import Post
 from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.post import PostCreate, PostOut
@@ -204,6 +204,68 @@ def get_my_posts(
         result.append(PostOut(**post_dict))
     
     return result
+
+
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a post by its ID. Only the post author can delete their own post.
+    
+    Deletion order:
+    1. Delete PostAudienceTag entries (foreign key constraint)
+    2. Delete photos from S3 (if any)
+    3. Delete the post itself
+    """
+    # Get the post and verify ownership
+    post = db.query(Post).filter(Post.id == post_id).first()
+    
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    if post.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own posts"
+        )
+    
+    try:
+        # Step 1: Delete PostAudienceTag entries (foreign key constraint)
+        db.query(PostAudienceTag).filter(PostAudienceTag.post_id == post_id).delete()
+        db.commit()
+        
+        # Step 2: Delete photos from S3 (if any)
+        if post.photo_urls:
+            for s3_key in post.photo_urls:
+                try:
+                    delete_photo_from_s3(s3_key)
+                except Exception as e:
+                    # Log error but continue deletion (don't fail if S3 delete fails)
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Failed to delete photo from S3 ({s3_key}): {str(e)}")
+        
+        # Step 3: Delete the post itself
+        db.delete(post)
+        db.commit()
+        
+        return None  # 204 No Content
+        
+    except Exception as e:
+        db.rollback()
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting post {post_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete post: {str(e)}"
+        )
 
 
 @router.get("/test-presigned/{s3_key:path}")

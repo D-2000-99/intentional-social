@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 export default function MyPosts() {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [deletingPostId, setDeletingPostId] = useState(null);
     const { token } = useAuth();
 
     const fetchMyPosts = async () => {
@@ -33,6 +34,29 @@ export default function MyPosts() {
         fetchMyPosts();
     }, [token]);
 
+    const handleDeletePost = async (postId) => {
+        // Confirm deletion
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this post? This action cannot be undone."
+        );
+        
+        if (!confirmed) {
+            return;
+        }
+
+        setDeletingPostId(postId);
+        try {
+            await api.deletePost(token, postId);
+            // Remove the post from the list
+            setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+        } catch (err) {
+            console.error("Failed to delete post", err);
+            alert(`Failed to delete post: ${err.message}`);
+        } finally {
+            setDeletingPostId(null);
+        }
+    };
+
     if (loading) return <p>Loading...</p>;
 
     return (
@@ -53,6 +77,14 @@ export default function MyPosts() {
                                 <span className="date">
                                     {new Date(post.created_at).toLocaleDateString()}
                                 </span>
+                                <button
+                                    onClick={() => handleDeletePost(post.id)}
+                                    disabled={deletingPostId === post.id}
+                                    className="delete-post-button"
+                                    title="Delete post"
+                                >
+                                    {deletingPostId === post.id ? "Deleting..." : "🗑️"}
+                                </button>
                             </div>
                             {post.content && (
                                 <p className="post-content">{post.content}</p>
