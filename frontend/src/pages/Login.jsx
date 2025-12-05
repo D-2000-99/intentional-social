@@ -108,53 +108,30 @@ export default function Login() {
     };
 
     return (
-        <div className="auth-container" style={{ 
-            minHeight: "100vh", 
-            display: "flex", 
-            flexDirection: "column", 
-            alignItems: "center", 
-            justifyContent: "center",
-            padding: "20px"
-        }}>
-            <h1 style={{ marginBottom: "10px" }}>Intentional Social</h1>
-            <p className="subtitle" style={{ marginBottom: "30px", color: "#666" }}>A calm place for meaningful connections.</p>
+        <div className="auth-container">
+            <h1 className="serif-font">Intentional Social</h1>
+            <p className="subtitle">A calm place for meaningful connections.</p>
 
             {processingCallback && (
-                <div style={{ textAlign: "center", margin: "20px 0" }}>
+                <div className="auth-loading">
                     <p>Completing sign-in...</p>
                 </div>
             )}
 
-            {error && <p className="error" style={{ color: "#d32f2f", marginBottom: "20px" }}>{error}</p>}
+            {error && <p className="error">{error}</p>}
 
             {!processingCallback && (
                 <button
                     onClick={handleGoogleOAuth}
                     disabled={loading}
                     className="google-signin-button"
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "12px",
-                        padding: "12px 24px",
-                        fontSize: "16px",
-                        fontWeight: "500",
-                        backgroundColor: "#fff",
-                        color: "#333",
-                        border: "1px solid #dadce0",
-                        borderRadius: "4px",
-                        cursor: loading ? "not-allowed" : "pointer",
-                        width: "100%",
-                        maxWidth: "300px",
-                        margin: "20px auto",
-                    }}
+                    aria-label="Sign in with Google"
                 >
                     {loading ? (
                         "Signing in..."
                     ) : (
                         <>
-                            <svg width="18" height="18" viewBox="0 0 18 18">
+                            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                                 <path
                                     fill="#4285F4"
                                     d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"

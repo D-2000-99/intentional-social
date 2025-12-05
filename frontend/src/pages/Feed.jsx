@@ -147,12 +147,13 @@ export default function Feed() {
         <div className="feed-container">
             <FeedFilterBar onFilterChange={setSelectedTagIds} />
 
-            <div className="create-post">
+            <section className="create-post-card">
+                <div className="create-header">What's on your mind?</div>
                 <form onSubmit={handlePost}>
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        placeholder="What's on your mind?"
+                        placeholder="Share a meaningful thought..."
                         rows="3"
                     />
                     
@@ -166,6 +167,7 @@ export default function Feed() {
                                         type="button"
                                         onClick={() => removePhoto(index)}
                                         className="remove-photo"
+                                        aria-label={`Remove photo ${index + 1}`}
                                     >
                                         ×
                                     </button>
@@ -174,8 +176,8 @@ export default function Feed() {
                         </div>
                     )}
                     
-                    <div className="post-actions">
-                        <div className="post-actions-left">
+                    <div className="create-actions">
+                        <div className="action-left">
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -186,20 +188,20 @@ export default function Feed() {
                                 id="photo-upload"
                             />
                             <label htmlFor="photo-upload" className="photo-upload-button">
-                                📷 Add Photos
+                                📷 Add Photo
                             </label>
                             <AudienceSelector onAudienceChange={setAudience} />
                         </div>
-                        <button type="submit" disabled={uploading}>
+                        <button type="submit" className="btn-primary" disabled={uploading}>
                             {uploading ? "Posting..." : "Post"}
                         </button>
                     </div>
                 </form>
-            </div>
+            </section>
 
             <div className="feed-list">
                 {loading ? (
-                    <p>Loading...</p>
+                    <p className="loading-state">Loading...</p>
                 ) : posts.length === 0 ? (
                     <div className="empty-state">
                         <p>Your feed is quiet.</p>
@@ -207,15 +209,19 @@ export default function Feed() {
                     </div>
                 ) : (
                     posts.map((post) => (
-                        <div key={post.id} className="post-card">
-                            <div className="post-header">
-                                <span className="author">@{post.author.username}</span>
-                                <span className="date">
-                                    {new Date(post.created_at).toLocaleDateString()}
+                        <article key={post.id} className="post-card">
+                            <div className="post-meta">
+                                <span className="author-name">{post.author.display_name || post.author.full_name || post.author.username}</span>
+                                <span className="post-date">
+                                    {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </span>
                             </div>
                             {post.content && (
-                                <p className="post-content">{post.content}</p>
+                                <div className="post-content">
+                                    {post.content.split('\n').map((paragraph, idx) => (
+                                        <p key={idx}>{paragraph}</p>
+                                    ))}
+                                </div>
                             )}
                             {/* Display photos */}
                             {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
@@ -225,22 +231,26 @@ export default function Feed() {
                                             key={index}
                                             src={url}
                                             alt={`Post photo ${index + 1}`}
-                                            className="post-photo"
+                                            className="post-image"
                                             loading="lazy"
                                             onError={(e) => {
                                                 console.error(`Failed to load image ${index + 1} for post ${post.id}`);
-                                                console.error(`Full URL:`, url);
-                                                console.error(`Error details:`, e);
                                                 e.target.style.display = 'none';
-                                            }}
-                                            onLoad={() => {
-                                                console.log(`Successfully loaded image ${index + 1} for post ${post.id}`);
                                             }}
                                         />
                                     ))}
                                 </div>
                             )}
-                        </div>
+                            {post.audience_tags && post.audience_tags.length > 0 && (
+                                <div className="tags-container">
+                                    {post.audience_tags.map((tag) => (
+                                        <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>
+                                            {tag.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </article>
                     ))
                 )}
             </div>

@@ -99,18 +99,35 @@ export default function People() {
         <div className="people-container">
             <h2>People</h2>
             {loading ? (
-                <p>Loading...</p>
+                <p className="loading-state">Loading...</p>
+            ) : users.length === 0 ? (
+                <div className="empty-state">
+                    <p>No other users found.</p>
+                    <p>Be the first to join!</p>
+                </div>
             ) : (
                 <div className="user-list">
                     {users.map((u) => (
                         <div key={u.id} className="user-card">
                             <div className="user-info">
                                 <span className="username">@{u.username}</span>
-                                <span className="joined">Joined {new Date(u.created_at).toLocaleDateString()}</span>
+                                <span className="joined">Joined {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                             </div>
                             <div className="actions">
-                                <button onClick={() => handleFollow(u.id)}>Follow</button>
-                                <button className="secondary" onClick={() => handleUnfollow(u.id)}>Unfollow</button>
+                                <button 
+                                    onClick={() => handleFollow(u.id)}
+                                    className="btn-primary"
+                                    aria-label={`Follow ${u.username}`}
+                                >
+                                    Follow
+                                </button>
+                                <button 
+                                    className="secondary" 
+                                    onClick={() => handleUnfollow(u.id)}
+                                    aria-label={`Unfollow ${u.username}`}
+                                >
+                                    Unfollow
+                                </button>
                             </div>
                         </div>
                     ))}

@@ -44,15 +44,21 @@ export default function FeedFilterBar({ onFilterChange }) {
 
     return (
         <div>
-            <div className="tag-filter-bar">
+            <div className="feed-filters">
+                <button
+                    className={`filter-pill ${selectedTagIds.length === 0 ? 'active' : ''}`}
+                    onClick={handleClearFilters}
+                >
+                    All Posts
+                </button>
                 {tags.map((tag) => (
-                    <TagPill
+                    <button
                         key={tag.id}
-                        tag={tag}
-                        clickable
-                        selected={selectedTagIds.includes(tag.id)}
-                        onClick={handleTagClick}
-                    />
+                        className={`filter-pill ${selectedTagIds.includes(tag.id) ? 'active' : ''}`}
+                        onClick={() => handleTagClick(tag)}
+                    >
+                        {tag.name}
+                    </button>
                 ))}
             </div>
 

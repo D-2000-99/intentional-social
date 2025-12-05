@@ -52,8 +52,9 @@ export default function Search() {
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Enter username or email..."
                     className="search-input"
+                    aria-label="Search users"
                 />
-                <button type="submit" disabled={loading}>
+                <button type="submit" className="btn-primary" disabled={loading}>
                     {loading ? "Searching..." : "Search"}
                 </button>
             </form>
@@ -63,17 +64,29 @@ export default function Search() {
             {results.length > 0 && (
                 <div className="search-results">
                     <h3>Results</h3>
-                    {results.map((user) => (
-                        <div key={user.id} className="user-card">
-                            <div className="user-info">
-                                <span className="username">@{user.username || 'N/A'}</span>
-                                <span className="email">{user.email}</span>
+                    <div className="user-list">
+                        {results.map((user) => (
+                            <div key={user.id} className="user-card">
+                                <div className="user-info">
+                                    <span className="username">@{user.username || 'N/A'}</span>
+                                    <span className="email">{user.email}</span>
+                                </div>
+                                <button 
+                                    onClick={() => handleSendRequest(user.id)}
+                                    className="btn-primary"
+                                    aria-label={`Send connection request to ${user.username || user.email}`}
+                                >
+                                    Send Request
+                                </button>
                             </div>
-                            <button onClick={() => handleSendRequest(user.id)}>
-                                Send Request
-                            </button>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {!loading && query && results.length === 0 && !error && (
+                <div className="empty-state">
+                    <p>No users found with that exact username or email.</p>
                 </div>
             )}
         </div>

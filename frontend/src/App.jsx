@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
@@ -16,23 +16,29 @@ const PrivateRoute = ({ children }) => {
 
 const Layout = ({ children }) => {
     const { logout, user } = useAuth();
+    const location = useLocation();
+    
+    const isActive = (path) => location.pathname === path;
+    
     return (
         <div className="app-layout">
             <nav>
-                <div className="nav-brand">Intentional Social</div>
-                <div className="nav-links">
-                    <a href="/">Feed</a>
-                    <a href="/my-posts">My Posts</a>
-                    <a href="/search">Search</a>
-                    <a href="/requests">Requests</a>
-                    <a href="/connections">Connections</a>
-                    <div className="user-profile">
-                        <span className="user-profile__name">
-                            {user?.display_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || user?.username}
-                        </span>
-                        <span className="user-profile__username">{user?.username}</span>
+                <div className="container nav-content">
+                    <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
+                    <div className="nav-links">
+                        <Link to="/" className={isActive("/") ? "active" : ""}>Feed</Link>
+                        <Link to="/my-posts" className={isActive("/my-posts") ? "active" : ""}>My Posts</Link>
+                        <Link to="/search" className={isActive("/search") ? "active" : ""}>Search</Link>
+                        <Link to="/requests" className={isActive("/requests") ? "active" : ""}>Requests</Link>
+                        <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
+                        <div className="user-profile">
+                            <span className="user-profile__name">
+                                {user?.display_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || user?.username}
+                            </span>
+                            <span className="user-profile__username">@{user?.username}</span>
+                        </div>
+                        <button onClick={logout} className="logout-btn">Logout</button>
                     </div>
-                    <button onClick={logout} className="logout-btn">Logout</button>
                 </div>
             </nav>
             <main>{children}</main>

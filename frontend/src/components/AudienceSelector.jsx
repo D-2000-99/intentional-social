@@ -62,14 +62,16 @@ export default function AudienceSelector({ onAudienceChange }) {
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className="audience-button"
+                aria-label="Select audience"
+                aria-expanded={isOpen}
             >
                 👁️ Visible to: <strong>{getAudienceSummary()}</strong>
             </button>
 
             {isOpen && (
-                <div className="audience-modal">
-                    <div className="audience-modal__content">
-                        <h3>Choose who can see this post</h3>
+                <div className="audience-modal" onClick={(e) => e.target === e.currentTarget && setIsOpen(false)}>
+                    <div className="audience-modal__content" role="dialog" aria-labelledby="audience-modal-title">
+                        <h3 id="audience-modal-title">Choose who can see this post</h3>
                         <p className="subtitle">Control the visibility of your post</p>
 
                         <div className="audience-options">
@@ -118,7 +120,7 @@ export default function AudienceSelector({ onAudienceChange }) {
                                 <p className="tag-selection__label">Select tags:</p>
                                 <div className="tag-grid">
                                     {tags.length === 0 ? (
-                                        <p style={{ fontSize: '14px', color: 'var(--color-text-subtle)' }}>
+                                        <p className="tag-selection__empty">
                                             No tags yet. Add tags to your connections first.
                                         </p>
                                     ) : (

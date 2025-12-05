@@ -57,7 +57,7 @@ export default function MyPosts() {
         }
     };
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <p className="loading-state">Loading...</p>;
 
     return (
         <div className="my-posts-container">
@@ -71,23 +71,30 @@ export default function MyPosts() {
             ) : (
                 <div className="feed-list">
                     {posts.map((post) => (
-                        <div key={post.id} className="post-card">
-                            <div className="post-header">
-                                <span className="author">@{post.author.username}</span>
-                                <span className="date">
-                                    {new Date(post.created_at).toLocaleDateString()}
-                                </span>
-                                <button
-                                    onClick={() => handleDeletePost(post.id)}
-                                    disabled={deletingPostId === post.id}
-                                    className="delete-post-button"
-                                    title="Delete post"
-                                >
-                                    {deletingPostId === post.id ? "Deleting..." : "🗑️"}
-                                </button>
+                        <article key={post.id} className="post-card">
+                            <div className="post-meta">
+                                <span className="author-name">{post.author.display_name || post.author.full_name || post.author.username}</span>
+                                <div className="post-meta-actions">
+                                    <span className="post-date">
+                                        {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                    <button
+                                        onClick={() => handleDeletePost(post.id)}
+                                        disabled={deletingPostId === post.id}
+                                        className="delete-post-button"
+                                        title="Delete post"
+                                        aria-label="Delete post"
+                                    >
+                                        {deletingPostId === post.id ? "Deleting..." : "🗑️"}
+                                    </button>
+                                </div>
                             </div>
                             {post.content && (
-                                <p className="post-content">{post.content}</p>
+                                <div className="post-content">
+                                    {post.content.split('\n').map((paragraph, idx) => (
+                                        <p key={idx}>{paragraph}</p>
+                                    ))}
+                                </div>
                             )}
                             {/* Display photos */}
                             {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
@@ -97,22 +104,26 @@ export default function MyPosts() {
                                             key={index}
                                             src={url}
                                             alt={`Post photo ${index + 1}`}
-                                            className="post-photo"
+                                            className="post-image"
                                             loading="lazy"
                                             onError={(e) => {
                                                 console.error(`Failed to load image ${index + 1} for post ${post.id}`);
-                                                console.error(`Full URL:`, url);
-                                                console.error(`Error details:`, e);
                                                 e.target.style.display = 'none';
-                                            }}
-                                            onLoad={() => {
-                                                console.log(`Successfully loaded image ${index + 1} for post ${post.id}`);
                                             }}
                                         />
                                     ))}
                                 </div>
                             )}
-                        </div>
+                            {post.audience_tags && post.audience_tags.length > 0 && (
+                                <div className="tags-container">
+                                    {post.audience_tags.map((tag) => (
+                                        <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>
+                                            {tag.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </article>
                     ))}
                 </div>
             )}

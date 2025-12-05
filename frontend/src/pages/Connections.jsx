@@ -76,7 +76,7 @@ export default function Connections() {
         }
     };
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <p className="loading-state">Loading...</p>;
 
     return (
         <div className="connections-container">
@@ -95,10 +95,10 @@ export default function Connections() {
                                 <span className="username">@{conn.other_user_username}</span>
                                 <span className="email">{conn.other_user_email}</span>
                                 <span className="date">
-                                    Connected {new Date(conn.created_at).toLocaleDateString()}
+                                    Connected {new Date(conn.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </span>
 
-                                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                <div className="connection-tags">
                                     {(connectionTags[conn.id] || []).map((tag) => (
                                         <TagPill
                                             key={tag.id}
@@ -116,6 +116,7 @@ export default function Connections() {
                                 <button
                                     className="secondary"
                                     onClick={() => handleDisconnect(conn.id, conn.other_user_username)}
+                                    aria-label={`Disconnect from ${conn.other_user_username}`}
                                 >
                                     Disconnect
                                 </button>

@@ -48,14 +48,16 @@ export default function Requests() {
         }
     };
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <p className="loading-state">Loading...</p>;
 
     return (
         <div className="requests-container">
             <section>
                 <h2>Incoming Requests</h2>
                 {incoming.length === 0 ? (
-                    <p className="empty-state">No incoming requests</p>
+                    <div className="empty-state">
+                        <p>No incoming requests</p>
+                    </div>
                 ) : (
                     <div className="user-list">
                         {incoming.map((req) => (
@@ -64,14 +66,21 @@ export default function Requests() {
                                     <span className="username">@{req.other_user_username}</span>
                                     <span className="email">{req.other_user_email}</span>
                                     <span className="date">
-                                        {new Date(req.created_at).toLocaleDateString()}
+                                        {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </span>
                                 </div>
                                 <div className="actions">
-                                    <button onClick={() => handleAccept(req.id)}>Accept</button>
+                                    <button 
+                                        onClick={() => handleAccept(req.id)}
+                                        className="btn-primary"
+                                        aria-label={`Accept request from ${req.other_user_username}`}
+                                    >
+                                        Accept
+                                    </button>
                                     <button
                                         className="secondary"
                                         onClick={() => handleReject(req.id)}
+                                        aria-label={`Reject request from ${req.other_user_username}`}
                                     >
                                         Reject
                                     </button>
@@ -82,10 +91,12 @@ export default function Requests() {
                 )}
             </section>
 
-            <section style={{ marginTop: "3rem" }}>
+            <section className="requests-section">
                 <h2>Outgoing Requests</h2>
                 {outgoing.length === 0 ? (
-                    <p className="empty-state">No outgoing requests</p>
+                    <div className="empty-state">
+                        <p>No outgoing requests</p>
+                    </div>
                 ) : (
                     <div className="user-list">
                         {outgoing.map((req) => (
@@ -94,13 +105,14 @@ export default function Requests() {
                                     <span className="username">@{req.other_user_username}</span>
                                     <span className="email">{req.other_user_email}</span>
                                     <span className="date">
-                                        Sent {new Date(req.created_at).toLocaleDateString()}
+                                        Sent {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </span>
                                 </div>
                                 <div className="actions">
                                     <button
                                         className="secondary"
                                         onClick={() => handleReject(req.id)}
+                                        aria-label={`Cancel request to ${req.other_user_username}`}
                                     >
                                         Cancel
                                     </button>
