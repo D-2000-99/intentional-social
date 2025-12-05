@@ -94,7 +94,9 @@ async def google_oauth_callback_get(
     
     # Redirect to frontend with code and state
     # Frontend will extract these and make POST request with code_verifier
-    frontend_url = f"{settings.FRONTEND_URL}/login?code={code}&state={state}"
+    # Remove trailing slash from FRONTEND_URL to avoid double slashes
+    frontend_base = settings.FRONTEND_URL.rstrip('/')
+    frontend_url = f"{frontend_base}/login?code={code}&state={state}"
     return RedirectResponse(url=frontend_url)
 
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -7,6 +7,7 @@ import UsernameSelectionModal from "../components/UsernameSelectionModal";
 export default function Login() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [processingCallback, setProcessingCallback] = useState(false);
     const [showUsernameModal, setShowUsernameModal] = useState(false);
     const [pendingUser, setPendingUser] = useState(null);
     const { login } = useAuth();
@@ -18,10 +19,11 @@ export default function Login() {
         const code = searchParams.get("code");
         const state = searchParams.get("state");
         
-        if (code && state) {
+        if (code && state && !processingCallback) {
+            setProcessingCallback(true);
             handleOAuthCallback(code, state);
         }
-    }, [searchParams]);
+    }, [searchParams, processingCallback, handleOAuthCallback]);
 
     const handleGoogleOAuth = async () => {
         setError("");
@@ -43,7 +45,7 @@ export default function Login() {
         }
     };
 
-    const handleOAuthCallback = async (code, state) => {
+    const handleOAuthCallback = useCallback(async (code, state) => {
         setLoading(true);
         setError("");
         
@@ -51,6 +53,10 @@ export default function Login() {
             // Retrieve stored code_verifier and state
             const codeVerifier = sessionStorage.getItem("oauth_code_verifier");
             const storedState = sessionStorage.getItem("oauth_state");
+            
+            if (!codeVerifier) {
+                throw new Error("Session expired. Please try signing in again.");
+            }
             
             // Verify state matches (CSRF protection)
             if (state !== storedState) {
@@ -71,17 +77,20 @@ export default function Login() {
             if (response.needs_username) {
                 setPendingUser(response.user);
                 setShowUsernameModal(true);
+                setLoading(false);
             } else {
                 // Navigate to home
-                navigate("/");
+                navigate("/", { replace: true });
             }
         } catch (err) {
+            console.error("OAuth callback error:", err);
             setError(err.message || "Authentication failed. Please try again.");
             setLoading(false);
+            setProcessingCallback(false);
             // Clear URL params
             navigate("/login", { replace: true });
         }
-    };
+    }, [login, navigate]);
 
     const handleUsernameSelected = async (username) => {
         try {
@@ -100,12 +109,19 @@ export default function Login() {
             <h1>Intentional Social</h1>
             <p className="subtitle">A calm place for meaningful connections.</p>
 
+            {processingCallback && (
+                <div style={{ textAlign: "center", margin: "20px 0" }}>
+                    <p>Completing sign-in...</p>
+                </div>
+            )}
+
             {error && <p className="error">{error}</p>}
 
-            <button
-                onClick={handleGoogleOAuth}
-                disabled={loading}
-                className="google-signin-button"
+            {!processingCallback && (
+                <button
+                    onClick={handleGoogleOAuth}
+                    disabled={loading}
+                    className="google-signin-button"
                 style={{
                     display: "flex",
                     alignItems: "center",
@@ -149,7 +165,8 @@ export default function Login() {
                         Sign in with Google
                     </>
                 )}
-            </button>
+                </button>
+            )}
 
             {showUsernameModal && pendingUser && (
                 <UsernameSelectionModal
