@@ -233,7 +233,7 @@ export default function Profile() {
                             <article key={post.id} className="post-card">
                                 <div className="post-meta">
                                     <span className="author-name">
-                                        {post.author.display_name || post.author.full_name || post.author.username}
+                                        @{post.author.username}
                                     </span>
                                     <div className="post-meta-actions">
                                         <span className="post-date">

@@ -139,6 +139,10 @@ textarea::placeholder {
   padding: 0 var(--spacing-medium);
 }
 
+.app-layout main {
+  padding-top: 0;
+}
+
 .container {
   max-width: var(--max-width);
   margin: 0 auto;
@@ -149,17 +153,32 @@ textarea::placeholder {
 nav {
   background-color: var(--bg-color);
   border-bottom: 1px solid var(--color-divider);
-  padding: var(--spacing-small) 0;
+  padding: var(--spacing-small) var(--spacing-medium);
   margin-bottom: 40px;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
+  transition: transform 0.3s ease-in-out;
+  transform: translateY(0);
+}
+
+nav.nav-hidden {
+  transform: translateY(-100%);
+}
+
+nav.nav-visible {
+  transform: translateY(0);
 }
 
 .nav-content {
+  max-width: var(--max-width);
+  margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0;
 }
 
 .nav-brand {
@@ -185,22 +204,40 @@ nav {
   color: var(--olive-primary);
 }
 
-.user-profile {
+.user-profile-link {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  text-decoration: none;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
 }
 
-.user-profile__name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-main);
+.user-profile-link:hover {
+  background-color: var(--paper-color);
 }
 
-.user-profile__username {
-  font-size: 12px;
-  color: var(--text-subtle);
+.user-profile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--color-divider);
+}
+
+.user-profile-avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--olive-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  border: 2px solid var(--color-divider);
+  font-family: 'Lora', serif;
 }
 
 .logout-btn {

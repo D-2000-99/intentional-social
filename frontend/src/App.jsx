@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
@@ -17,24 +18,70 @@ const PrivateRoute = ({ children }) => {
 const Layout = ({ children }) => {
     const { user } = useAuth();
     const location = useLocation();
+    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const [lastScrollY, setLastScrollY] = useState(0);
     
     const isActive = (path) => location.pathname === path;
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            
+            // Show navbar when scrolling up, hide when scrolling down
+            if (currentScrollY < lastScrollY) {
+                // Scrolling up
+                setIsNavbarVisible(true);
+            } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+                // Scrolling down and past 100px
+                setIsNavbarVisible(false);
+            }
+            
+            setLastScrollY(currentScrollY);
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [lastScrollY]);
+
+    // Get avatar URL
+    const getAvatarUrl = () => {
+        if (user?.avatar_url) {
+            return user.avatar_url;
+        }
+        return user?.picture_url || null;
+    };
+
+    const avatarUrl = getAvatarUrl();
+    const displayName = user?.display_name || user?.full_name || user?.username || "User";
     
     return (
         <div className="app-layout">
-            <nav>
-                <div className="container nav-content">
+            <nav className={isNavbarVisible ? 'nav-visible' : 'nav-hidden'}>
+                <div className="nav-content">
                     <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Feed</Link>
                         <Link to="/search" className={isActive("/search") ? "active" : ""}>Search</Link>
                         <Link to="/requests" className={isActive("/requests") ? "active" : ""}>Requests</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
-                        <Link to="/profile" className="user-profile">
-                            <span className="user-profile__name">
-                                {user?.display_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || user?.username}
-                            </span>
-                            <span className="user-profile__username">@{user?.username}</span>
+                        <Link to="/profile" className="user-profile-link">
+                            {avatarUrl ? (
+                                <img 
+                                    src={avatarUrl} 
+                                    alt="Profile" 
+                                    className="user-profile-avatar"
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                />
+                            ) : null}
+                            <div 
+                                className="user-profile-avatar-placeholder"
+                                style={{ display: avatarUrl ? 'none' : 'flex' }}
+                            >
+                                {displayName.charAt(0).toUpperCase()}
+                            </div>
                         </Link>
                     </div>
                 </div>

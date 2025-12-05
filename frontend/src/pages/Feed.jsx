@@ -216,7 +216,7 @@ export default function Feed() {
                                     to={`/profile/${post.author.username}`}
                                     className="author-name author-link"
                                 >
-                                    {post.author.display_name || post.author.full_name || post.author.username}
+                                    @{post.author.username}
                                 </Link>
                                 <span className="post-date">
                                     {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
