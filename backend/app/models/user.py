@@ -10,7 +10,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    username = Column(String(50), unique=True, nullable=False, index=True)
+    username = Column(String(50), unique=True, nullable=True, index=True)
     google_id = Column(String(255), unique=True, nullable=False, index=True)
     auth_provider = Column(String(20), default="google", nullable=False)
     full_name = Column(String(255), nullable=True)  # From Google, user can override

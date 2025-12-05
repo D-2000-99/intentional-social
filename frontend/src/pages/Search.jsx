@@ -66,7 +66,7 @@ export default function Search() {
                     {results.map((user) => (
                         <div key={user.id} className="user-card">
                             <div className="user-info">
-                                <span className="username">@{user.username}</span>
+                                <span className="username">@{user.username || 'N/A'}</span>
                                 <span className="email">{user.email}</span>
                             </div>
                             <button onClick={() => handleSendRequest(user.id)}>

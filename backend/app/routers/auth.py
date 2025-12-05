@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import logging
-import re
 from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
@@ -162,19 +161,10 @@ async def google_oauth_callback(
                     detail="Email already registered with different account"
                 )
             
-            # Create user but username will be set later via username selection endpoint
-            # For now, use a temporary username based on email
-            temp_username = email.split("@")[0].lower()[:50]
-            # Ensure uniqueness
-            counter = 1
-            base_username = temp_username
-            while db.query(User).filter(User.username == temp_username).first():
-                temp_username = f"{base_username}{counter}"
-                counter += 1
-            
+            # Create user without username - user must set it via username selection endpoint
             user = User(
                 email=email,
-                username=temp_username,  # Temporary, user will set proper username
+                username=None,  # User must set username during registration
                 google_id=google_id,
                 auth_provider="google",
                 full_name=full_name,
@@ -184,22 +174,13 @@ async def google_oauth_callback(
             db.commit()
             db.refresh(user)
             
-            logger.info(f"New Google OAuth user created: {user.username} ({user.email})")
+            logger.info(f"New Google OAuth user created without username: {user.email}")
         
         # Generate our JWT token
         token = create_access_token(subject=user.id)
         
-        # Check if user needs to set username
-        # Temporary usernames are based on email prefix, so check if username matches that pattern
-        email_prefix = email.split("@")[0].lower()
-        is_temp_username = (
-            user.username == email_prefix or
-            (user.username.startswith(email_prefix) and 
-             re.match(f"^{re.escape(email_prefix)}\\d+$", user.username) is not None)
-        )
-        
-        # Also check if username is very short (likely temporary)
-        needs_username = is_temp_username or len(user.username) < 4
+        # Check if user needs to set username - only if username is NULL
+        needs_username = user.username is None
         
         return {
             "access_token": token,
@@ -229,7 +210,15 @@ def select_username(
     """
     Allow user to set their username after Google OAuth registration.
     Username must be unique and meet validation requirements.
+    Username can only be set once and cannot be changed.
     """
+    # Check if user already has a username set
+    if current_user.username is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username has already been set and cannot be changed"
+        )
+    
     # Check if username is already taken
     existing_user = db.query(User).filter(
         User.username == payload.username,
@@ -242,7 +231,7 @@ def select_username(
             detail="Username already taken"
         )
     
-    # Update username
+    # Set username (permanent, cannot be changed)
     current_user.username = payload.username
     db.commit()
     db.refresh(current_user)
