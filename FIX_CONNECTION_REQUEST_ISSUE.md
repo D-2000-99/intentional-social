@@ -110,7 +110,8 @@ Test if the endpoint is accessible:
 ```bash
 # Test with curl (replace YOUR_TOKEN with actual token)
 curl -X POST https://api.intentionalsocial.org/connections/request/1 \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: 
+Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZXhwIjoxNzY0OTM1NjcyfQ.1jtqr_otF-O41JfF6Y7LNpGiZWNXEznqg0kKLO0_MvM" \
   -H "Content-Type: application/json" \
   -v
 ```
