@@ -754,6 +754,32 @@ button:focus-visible,
   margin-bottom: 1.5rem;
 }
 
+.connections-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.connection-tag-section {
+  margin-bottom: 2rem;
+}
+
+.connection-tag-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.connection-count {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-subtle);
+}
+
 /* Remove all animations - Design Philosophy: Calm, No Distractions */
 * {
   animation: none !important;
