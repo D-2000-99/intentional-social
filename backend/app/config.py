@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     MAX_CONNECTIONS: int = 10
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://intentional-social.pages.dev/,https://intentionalsocial.org"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://intentional-social.pages.dev/,https://intentionalsocial.org,https://dev.intentional-social.pages.dev"
     
     # Email configuration (optional for MVP - can skip in dev)
     SMTP_SERVER: str = "smtp.gmail.com"
