@@ -19,12 +19,26 @@ export default function Connections() {
             const data = await api.getConnections(token);
             setConnections(data);
 
+            // Ensure user tags are loaded for filtering
+            let userTags = allTags;
+            if (userTags.length === 0) {
+                userTags = await api.getTags(token);
+                setAllTags(userTags);
+            }
+            
             // Fetch tags for each connection
+            // IMPORTANT: Only show tags that belong to the current user
+            // Filter out any tags that don't match the user's own tags (extra safety check)
             const tagsMap = {};
+            const userTagIds = new Set(userTags.map(t => t.id));
+            
             for (const conn of data) {
                 try {
                     const tags = await api.getConnectionTags(token, conn.id);
-                    tagsMap[conn.id] = tags;
+                    // Double-check: filter out any tags that don't belong to current user
+                    // This is a safety measure - backend should already filter, but this ensures no leaks
+                    const filteredTags = tags.filter(tag => userTagIds.has(tag.id));
+                    tagsMap[conn.id] = filteredTags;
                 } catch (err) {
                     tagsMap[conn.id] = [];
                 }
@@ -83,8 +97,8 @@ export default function Connections() {
     };
 
     useEffect(() => {
-        fetchConnections();
         fetchTags();
+        fetchConnections();
     }, [token]);
 
     const handleDisconnect = async (connectionId, username) => {

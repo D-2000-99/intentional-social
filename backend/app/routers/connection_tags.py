@@ -35,18 +35,22 @@ def get_connection_tags(
         )
     
     # Get tags for this connection that belong to the current user
+    # IMPORTANT: Only return tags that belong to the current user
+    # Each user has their own personal tags, and tags from other users should never be visible
     connection_tags = (
         db.query(ConnectionTag)
         .options(joinedload(ConnectionTag.tag))
         .join(Tag, ConnectionTag.tag_id == Tag.id)
         .filter(
             ConnectionTag.connection_id == connection_id,
-            Tag.user_id == current_user.id
+            Tag.user_id == current_user.id  # CRITICAL: Only show tags owned by current user
         )
         .all()
     )
     
-    return [ct.tag for ct in connection_tags]
+    # Double-check: ensure all returned tags belong to current user
+    user_tags = [ct.tag for ct in connection_tags if ct.tag and ct.tag.user_id == current_user.id]
+    return user_tags
 
 
 @router.post("/{connection_id}/tags", status_code=status.HTTP_201_CREATED)
