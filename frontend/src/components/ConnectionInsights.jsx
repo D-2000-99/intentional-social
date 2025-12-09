@@ -33,13 +33,22 @@ export default function ConnectionInsights() {
 
   useEffect(() => {
     const fetchInsights = async () => {
+      if (!token) {
+        setError("No authentication token");
+        setLoading(false);
+        return;
+      }
+      
       try {
         setLoading(true);
+        setError(null);
         const data = await api.getConnectionInsights(token);
+        console.log("Connection insights data:", data);
         setInsights(data);
       } catch (err) {
         console.error("Failed to fetch connection insights", err);
         setError(err.message || "Failed to load insights");
+        setInsights(null);
       } finally {
         setLoading(false);
       }
@@ -56,8 +65,27 @@ export default function ConnectionInsights() {
     );
   }
 
-  if (error || !insights) {
-    return null; // Silently fail - insights are optional
+  if (error) {
+    console.error("Connection insights error:", error);
+    return (
+      <div className="connection-insights">
+        <h3 className="insights-title">Connection Insights</h3>
+        <div className="insights-error" style={{ color: 'var(--text-subtle)', padding: '16px', textAlign: 'center', fontSize: '14px' }}>
+          Unable to load insights: {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!insights) {
+    return (
+      <div className="connection-insights">
+        <h3 className="insights-title">Connection Insights</h3>
+        <div className="insights-empty">
+          <p>No insights available.</p>
+        </div>
+      </div>
+    );
   }
 
   const { current_connections, max_connections, connection_percentage, tag_distribution } = insights;
@@ -106,7 +134,7 @@ export default function ConnectionInsights() {
     <div className="connection-insights">
       <h3 className="insights-title">Connection Insights</h3>
       
-      {/* Connection Progress Circle */}
+      {/* Connection Progress Circle - Always show */}
       <div className="insights-section">
         <div className="connection-progress-container">
           <svg className="connection-progress-circle" viewBox="0 0 140 140">
@@ -142,7 +170,7 @@ export default function ConnectionInsights() {
       </div>
 
       {/* Tag Distribution Pie Chart */}
-      {tag_distribution.length > 0 && (
+      {tag_distribution.length > 0 ? (
         <div className="insights-section">
           <h4 className="insights-subtitle">Tag Distribution</h4>
           <div className="tag-pie-container">
@@ -176,11 +204,11 @@ export default function ConnectionInsights() {
             </div>
           </div>
         </div>
-      )}
-
-      {tag_distribution.length === 0 && (
-        <div className="insights-empty">
-          <p>No tags assigned yet. Tag your connections to see distribution.</p>
+      ) : (
+        <div className="insights-section">
+          <div className="insights-empty">
+            <p>No tags assigned yet. Tag your connections to see distribution.</p>
+          </div>
         </div>
       )}
     </div>
