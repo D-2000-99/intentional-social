@@ -34,11 +34,15 @@ def get_connection_tags(
             detail="Not authorized",
         )
     
-    # Get tags for this connection
+    # Get tags for this connection that belong to the current user
     connection_tags = (
         db.query(ConnectionTag)
         .options(joinedload(ConnectionTag.tag))
-        .filter(ConnectionTag.connection_id == connection_id)
+        .join(Tag, ConnectionTag.tag_id == Tag.id)
+        .filter(
+            ConnectionTag.connection_id == connection_id,
+            Tag.user_id == current_user.id
+        )
         .all()
     )
     
@@ -126,6 +130,15 @@ def remove_tag_from_connection(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
+        )
+    
+    # Verify tag belongs to current user
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    
+    if not tag:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tag not found",
         )
     
     # Find and delete connection tag

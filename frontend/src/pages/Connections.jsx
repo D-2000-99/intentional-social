@@ -9,6 +9,7 @@ export default function Connections() {
     const [connections, setConnections] = useState([]);
     const [connectionTags, setConnectionTags] = useState({});
     const [allTags, setAllTags] = useState([]);
+    const [selectedTagFilter, setSelectedTagFilter] = useState(null); // null means "all"
     const [loading, setLoading] = useState(true);
     const { token } = useAuth();
 
@@ -45,35 +46,17 @@ export default function Connections() {
         }
     };
 
-    // Group connections by tags
-    const groupedConnections = useMemo(() => {
-        const grouped = {
-            untagged: [],
-        };
+    // Filter connections based on selected tag
+    const filteredConnections = useMemo(() => {
+        if (!selectedTagFilter) {
+            return connections; // Show all connections
+        }
 
-        // Initialize all tags with empty arrays
-        allTags.forEach(tag => {
-            grouped[tag.id] = [];
-        });
-
-        // Group connections
-        connections.forEach(conn => {
+        return connections.filter(conn => {
             const tags = connectionTags[conn.id] || [];
-            if (tags.length === 0) {
-                grouped.untagged.push(conn);
-            } else {
-                // Add connection to each tag it belongs to
-                tags.forEach(tag => {
-                    if (!grouped[tag.id]) {
-                        grouped[tag.id] = [];
-                    }
-                    grouped[tag.id].push(conn);
-                });
-            }
+            return tags.some(tag => tag.id === selectedTagFilter);
         });
-
-        return grouped;
-    }, [connections, connectionTags, allTags]);
+    }, [connections, connectionTags, selectedTagFilter]);
 
     const handleAddTag = async (connectionId, tag) => {
         try {
@@ -162,44 +145,40 @@ export default function Connections() {
 
     return (
         <div className="connections-container">
-            <h2>My Connections ({connections.length})</h2>
+            <div className="connections-header">
+                <h2>My Connections ({filteredConnections.length}{selectedTagFilter ? ` of ${connections.length}` : ''})</h2>
+                
+                {/* Tag Filter */}
+                <div className="tag-filter-container">
+                    <label htmlFor="tag-filter" className="tag-filter-label">Filter by tag:</label>
+                    <select
+                        id="tag-filter"
+                        className="tag-filter-select"
+                        value={selectedTagFilter || ''}
+                        onChange={(e) => setSelectedTagFilter(e.target.value ? parseInt(e.target.value) : null)}
+                    >
+                        <option value="">All Connections</option>
+                        {allTags.map(tag => (
+                            <option key={tag.id} value={tag.id}>
+                                {tag.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </div>
 
             {connections.length === 0 ? (
                 <div className="empty-state">
                     <p>You don't have any connections yet.</p>
                     <p>Search for users to send connection requests.</p>
                 </div>
+            ) : filteredConnections.length === 0 ? (
+                <div className="empty-state">
+                    <p>No connections found with the selected tag filter.</p>
+                </div>
             ) : (
-                <div className="connections-grouped">
-                    {/* Untagged Connections Section */}
-                    {groupedConnections.untagged.length > 0 && (
-                        <section className="connection-tag-section">
-                            <h3 className="connection-tag-section-title">
-                                Untagged Connections ({groupedConnections.untagged.length})
-                            </h3>
-                            <div className="user-list">
-                                {groupedConnections.untagged.map(conn => renderConnectionCard(conn))}
-                            </div>
-                        </section>
-                    )}
-
-                    {/* Tag Sections */}
-                    {allTags.map(tag => {
-                        const tagConnections = groupedConnections[tag.id] || [];
-                        if (tagConnections.length === 0) return null;
-
-                        return (
-                            <section key={tag.id} className="connection-tag-section">
-                                <h3 className="connection-tag-section-title">
-                                    <TagPill tag={tag} />
-                                    <span className="connection-count">({tagConnections.length})</span>
-                                </h3>
-                                <div className="user-list">
-                                    {tagConnections.map(conn => renderConnectionCard(conn))}
-                                </div>
-                            </section>
-                        );
-                    })}
+                <div className="user-list">
+                    {filteredConnections.map(conn => renderConnectionCard(conn))}
                 </div>
             )}
         </div>
