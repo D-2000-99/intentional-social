@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, status, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from app.core.deps import get_db, get_current_user
 from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url, delete_photo_from_s3
@@ -31,6 +33,21 @@ async def create_post(
     - audience_tag_ids: Comma-separated tag IDs (optional, used when audience_type is 'tags')
     - photos: One or more image files (optional)
     """
+    # Check daily post limit (3 posts per day)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    posts_today_count = (
+        db.query(func.count(Post.id))
+        .filter(Post.author_id == current_user.id)
+        .filter(Post.created_at >= today_start)
+        .scalar()
+    )
+    
+    if posts_today_count >= 3:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You have reached the daily limit of 3 posts. Please try again tomorrow."
+        )
+    
     # Parse audience_tag_ids
     tag_ids = []
     if audience_tag_ids:

@@ -1434,3 +1434,149 @@ button:focus-visible,
   color: var(--text-main);
   font-family: 'Lora', serif;
 }
+
+/* Connection Insights */
+.connection-insights {
+  background: var(--surface-color);
+  border-radius: 8px;
+  padding: 32px;
+  margin-top: 40px;
+  box-shadow: var(--shadow-card);
+}
+
+.insights-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 32px;
+  color: var(--text-main);
+  font-family: 'Lora', serif;
+}
+
+.insights-subtitle {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 24px;
+  color: var(--text-main);
+}
+
+.insights-section {
+  margin-bottom: 40px;
+}
+
+.insights-section:last-child {
+  margin-bottom: 0;
+}
+
+.insights-loading {
+  text-align: center;
+  color: var(--text-subtle);
+  padding: 24px;
+}
+
+.insights-empty {
+  text-align: center;
+  color: var(--text-subtle);
+  padding: 24px;
+  font-size: 14px;
+}
+
+/* Connection Progress Circle */
+.connection-progress-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 24px 0;
+}
+
+.connection-progress-circle {
+  width: 140px;
+  height: 140px;
+}
+
+.connection-progress-fill {
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.connection-progress-text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-percentage {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: 'Lora', serif;
+  line-height: 1.2;
+}
+
+.progress-label {
+  font-size: 14px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+}
+
+/* Tag Pie Chart */
+.tag-pie-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+.tag-pie-chart {
+  width: 200px;
+  height: 200px;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05));
+}
+
+.pie-segment {
+  transition: opacity 0.2s;
+}
+
+.pie-segment:hover {
+  opacity: 0.8;
+}
+
+.tag-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--paper-color);
+  border-radius: 6px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-divider);
+}
+
+.legend-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.legend-percentage {
+  font-size: 14px;
+  color: var(--text-subtle);
+  font-weight: 500;
+}

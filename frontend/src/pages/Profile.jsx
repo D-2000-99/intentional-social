@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api";
 import imageCompression from "browser-image-compression";
+import ConnectionInsights from "../components/ConnectionInsights";
 
 export default function Profile() {
     const { username: urlUsername } = useParams();
@@ -217,6 +218,9 @@ export default function Profile() {
                     )}
                 </div>
             </div>
+
+            {/* Connection Insights - Only visible to profile owner */}
+            {isOwnProfile && <ConnectionInsights />}
 
             {/* User's Posts */}
             <div className="profile-posts-section">
