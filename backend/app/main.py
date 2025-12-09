@@ -90,6 +90,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(posts.router)
 app.include_router(feed.router)
+# Register connections router first to ensure /connections/insights is matched before /connections/{connection_id}/tags
 app.include_router(connections.router)
 app.include_router(connection_tags.router)
 app.include_router(tags.router)

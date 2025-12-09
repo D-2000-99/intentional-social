@@ -262,74 +262,6 @@ def reject_connection_request(
     return {"detail": "Connection request rejected"}
 
 
-@router.get("", response_model=list[ConnectionWithUser])
-def get_connections(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get all accepted connections."""
-    
-    # Use joinedload for both requester and recipient to avoid N+1 queries
-    connections = (
-        db.query(Connection)
-        .options(joinedload(Connection.requester), joinedload(Connection.recipient))
-        .filter(
-            or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
-            ),
-            Connection.status == ConnectionStatus.ACCEPTED,
-        )
-        .all()
-    )
-    
-    result = []
-    for conn in connections:
-        # Determine the other user (already loaded via joinedload)
-        other_user = conn.recipient if conn.requester_id == current_user.id else conn.requester
-        
-        result.append(
-            ConnectionWithUser(
-                id=conn.id,
-                status=conn.status.value,
-                created_at=conn.created_at,
-                other_user_id=other_user.id,
-                other_user_username=other_user.username,
-            )
-        )
-    
-    return result
-
-
-@router.delete("/{connection_id}")
-def disconnect(
-    connection_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Remove an existing connection"""
-    
-    connection = db.query(Connection).filter(Connection.id == connection_id).first()
-    
-    if not connection:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Connection not found",
-        )
-    
-    # Must be part of the connection
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized",
-        )
-    
-    db.delete(connection)
-    db.commit()
-    
-    return {"detail": "Disconnected successfully"}
-
-
 class TagDistributionItem(BaseModel):
     tag_id: int
     tag_name: str
@@ -348,6 +280,7 @@ class ConnectionInsights(BaseModel):
     tag_distribution: List[TagDistributionItem]
 
 
+# Define insights endpoint BEFORE parameterized routes to avoid route conflicts
 @router.get("/insights", response_model=ConnectionInsights)
 def get_connection_insights(
     db: Session = Depends(get_db),
@@ -419,3 +352,71 @@ def get_connection_insights(
         connection_percentage=round(connection_percentage, 1),
         tag_distribution=tag_distribution
     )
+
+
+@router.get("", response_model=list[ConnectionWithUser])
+def get_connections(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all accepted connections."""
+    
+    # Use joinedload for both requester and recipient to avoid N+1 queries
+    connections = (
+        db.query(Connection)
+        .options(joinedload(Connection.requester), joinedload(Connection.recipient))
+        .filter(
+            or_(
+                Connection.requester_id == current_user.id,
+                Connection.recipient_id == current_user.id,
+            ),
+            Connection.status == ConnectionStatus.ACCEPTED,
+        )
+        .all()
+    )
+    
+    result = []
+    for conn in connections:
+        # Determine the other user (already loaded via joinedload)
+        other_user = conn.recipient if conn.requester_id == current_user.id else conn.requester
+        
+        result.append(
+            ConnectionWithUser(
+                id=conn.id,
+                status=conn.status.value,
+                created_at=conn.created_at,
+                other_user_id=other_user.id,
+                other_user_username=other_user.username,
+            )
+        )
+    
+    return result
+
+
+@router.delete("/{connection_id}")
+def disconnect(
+    connection_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove an existing connection"""
+    
+    connection = db.query(Connection).filter(Connection.id == connection_id).first()
+    
+    if not connection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Connection not found",
+        )
+    
+    # Must be part of the connection
+    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized",
+        )
+    
+    db.delete(connection)
+    db.commit()
+    
+    return {"detail": "Disconnected successfully"}
