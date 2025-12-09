@@ -17,6 +17,97 @@ router = APIRouter(prefix="/connections", tags=["Connections"])
 logger = logging.getLogger(__name__)
 
 
+# Define schemas for insights endpoint
+class TagDistributionItem(BaseModel):
+    tag_id: int
+    tag_name: str
+    color_scheme: str
+    count: int
+    percentage: float
+
+    class Config:
+        from_attributes = True
+
+
+class ConnectionInsights(BaseModel):
+    current_connections: int
+    max_connections: int
+    connection_percentage: float
+    tag_distribution: List[TagDistributionItem]
+
+
+# Define insights endpoint FIRST to avoid route conflicts with /{connection_id}/tags
+@router.get("/insights", response_model=ConnectionInsights)
+def get_connection_insights(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get connection insights for the current user only (connection count and tag distribution)"""
+    
+    # Get accepted connections count
+    accepted_count = (
+        db.query(Connection)
+        .filter(
+            or_(
+                Connection.requester_id == current_user.id,
+                Connection.recipient_id == current_user.id,
+            ),
+            Connection.status == ConnectionStatus.ACCEPTED,
+        )
+        .count()
+    )
+    
+    max_connections = settings.MAX_CONNECTIONS
+    connection_percentage = (accepted_count / max_connections * 100) if max_connections > 0 else 0
+    
+    # Get tag distribution - count how many connections have each tag
+    # Only count tags that belong to the current user
+    tag_distribution_query = (
+        db.query(
+            Tag.id,
+            Tag.name,
+            Tag.color_scheme,
+            func.count(ConnectionTag.connection_id).label('count')
+        )
+        .join(ConnectionTag, Tag.id == ConnectionTag.tag_id)
+        .join(Connection, ConnectionTag.connection_id == Connection.id)
+        .filter(
+            Tag.user_id == current_user.id,  # Only user's own tags
+            or_(
+                Connection.requester_id == current_user.id,
+                Connection.recipient_id == current_user.id,
+            ),
+            Connection.status == ConnectionStatus.ACCEPTED,
+        )
+        .group_by(Tag.id, Tag.name, Tag.color_scheme)
+        .all()
+    )
+    
+    # Calculate percentages
+    tag_distribution = []
+    for tag_id, tag_name, color_scheme, count in tag_distribution_query:
+        percentage = (count / accepted_count * 100) if accepted_count > 0 else 0
+        tag_distribution.append(
+            TagDistributionItem(
+                tag_id=tag_id,
+                tag_name=tag_name,
+                color_scheme=color_scheme,
+                count=count,
+                percentage=round(percentage, 1)
+            )
+        )
+    
+    # Sort by count descending
+    tag_distribution.sort(key=lambda x: x.count, reverse=True)
+    
+    return ConnectionInsights(
+        current_connections=accepted_count,
+        max_connections=max_connections,
+        connection_percentage=round(connection_percentage, 1),
+        tag_distribution=tag_distribution
+    )
+
+
 @router.post("/request/{recipient_id}", status_code=status.HTTP_201_CREATED)
 def send_connection_request(
     recipient_id: int,
@@ -260,98 +351,6 @@ def reject_connection_request(
     
     logger.info(f"User {current_user.id} rejected/cancelled connection {connection_id}")
     return {"detail": "Connection request rejected"}
-
-
-class TagDistributionItem(BaseModel):
-    tag_id: int
-    tag_name: str
-    color_scheme: str
-    count: int
-    percentage: float
-
-    class Config:
-        from_attributes = True
-
-
-class ConnectionInsights(BaseModel):
-    current_connections: int
-    max_connections: int
-    connection_percentage: float
-    tag_distribution: List[TagDistributionItem]
-
-
-# Define insights endpoint BEFORE parameterized routes to avoid route conflicts
-@router.get("/insights", response_model=ConnectionInsights)
-def get_connection_insights(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get connection insights for the current user only (connection count and tag distribution)"""
-    
-    # Get accepted connections count
-    accepted_count = (
-        db.query(Connection)
-        .filter(
-            or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
-            ),
-            Connection.status == ConnectionStatus.ACCEPTED,
-        )
-        .count()
-    )
-    
-    max_connections = settings.MAX_CONNECTIONS
-    connection_percentage = (accepted_count / max_connections * 100) if max_connections > 0 else 0
-    
-    # Get tag distribution - count how many connections have each tag
-    # Only count tags that belong to the current user
-    tag_distribution_query = (
-        db.query(
-            Tag.id,
-            Tag.name,
-            Tag.color_scheme,
-            func.count(ConnectionTag.connection_id).label('count')
-        )
-        .join(ConnectionTag, Tag.id == ConnectionTag.tag_id)
-        .join(Connection, ConnectionTag.connection_id == Connection.id)
-        .filter(
-            Tag.user_id == current_user.id,  # Only user's own tags
-            or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
-            ),
-            Connection.status == ConnectionStatus.ACCEPTED,
-        )
-        .group_by(Tag.id, Tag.name, Tag.color_scheme)
-        .all()
-    )
-    
-    # Calculate percentages
-    total_tagged_connections = sum(item.count for item in tag_distribution_query)
-    
-    tag_distribution = []
-    for tag_id, tag_name, color_scheme, count in tag_distribution_query:
-        percentage = (count / accepted_count * 100) if accepted_count > 0 else 0
-        tag_distribution.append(
-            TagDistributionItem(
-                tag_id=tag_id,
-                tag_name=tag_name,
-                color_scheme=color_scheme,
-                count=count,
-                percentage=round(percentage, 1)
-            )
-        )
-    
-    # Sort by count descending
-    tag_distribution.sort(key=lambda x: x.count, reverse=True)
-    
-    return ConnectionInsights(
-        current_connections=accepted_count,
-        max_connections=max_connections,
-        connection_percentage=round(connection_percentage, 1),
-        tag_distribution=tag_distribution
-    )
 
 
 @router.get("", response_model=list[ConnectionWithUser])
