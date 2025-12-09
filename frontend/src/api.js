@@ -189,7 +189,7 @@ export const api = {
     api.request("/connections", "GET", null, token),
 
   getConnectionInsights: (token) =>
-    api.request("/connections/insights", "GET", null, token),
+    api.request("/connections/stats", "GET", null, token),
 
   disconnect: (token, connectionId) =>
     api.request(`/connections/${connectionId}`, "DELETE", null, token),

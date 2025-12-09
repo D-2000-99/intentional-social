@@ -37,7 +37,8 @@ class ConnectionInsights(BaseModel):
 
 
 # Define insights endpoint FIRST to avoid route conflicts with /{connection_id}/tags
-@router.get("/insights", response_model=ConnectionInsights)
+# Using /stats instead of /insights to avoid conflicts with parameterized routes
+@router.get("/stats", response_model=ConnectionInsights)
 def get_connection_insights(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
