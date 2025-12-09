@@ -99,6 +99,10 @@ async def google_oauth_callback_get(
     # Remove trailing slash from FRONTEND_URL to avoid double slashes
     frontend_base = settings.FRONTEND_URL.rstrip('/')
     frontend_url = f"{frontend_base}/login?code={code}&state={state}"
+    
+    # Log for debugging (helps identify which backend is handling the request)
+    logger.info(f"OAuth callback redirecting to: {frontend_url} (FRONTEND_URL={settings.FRONTEND_URL})")
+    
     return RedirectResponse(url=frontend_url)
 
 

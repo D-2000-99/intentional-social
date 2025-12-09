@@ -38,7 +38,9 @@ DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social_dev
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000,https://api-dev.intentionalsocial.org,https://intentional-social.pages.dev,https://<your-branch>--intentional-social.pages.dev
 
 # Frontend URL for OAuth redirects
-FRONTEND_URL=https://<your-branch>--intentional-social.pages.dev
+# IMPORTANT: This determines where Google OAuth redirects after authentication
+# For dev branch, use: https://dev.intentional-social.pages.dev
+FRONTEND_URL=https://dev.intentional-social.pages.dev
 
 # Google OAuth Configuration
 GOOGLE_REDIRECT_URI=https://api-dev.intentionalsocial.org/auth/google/callback
@@ -88,6 +90,11 @@ docker compose -f docker-compose-dev.yml logs -f backend
 
 # Verify backend is running
 curl https://api-dev.intentionalsocial.org/health
+```
+
+**Important**: After updating `.env` file, always restart the backend:
+```bash
+docker compose -f docker-compose-dev.yml restart backend
 ```
 
 ### 5. Initialize Dev Database
@@ -168,6 +175,65 @@ curl http://localhost:8001/health
 1. Verify `CORS_ORIGINS` in dev `.env` includes your Cloudflare Pages preview URL
 2. Restart backend: `docker compose -f docker-compose-dev.yml restart backend`
 3. Check backend logs for CORS-related errors
+
+### OAuth redirects to wrong frontend
+
+If Google OAuth redirects to production URL (`https://www.intentionalsocial.org`) instead of dev:
+
+**Step 1: Verify you're testing from the dev frontend**
+- Make sure you're accessing: `https://dev.intentional-social.pages.dev/login`
+- NOT: `https://www.intentionalsocial.org/login` (this is production)
+
+**Step 2: Verify dev frontend is calling dev backend**
+1. Open browser DevTools (F12) → Network tab
+2. Click "Sign in with Google" on dev frontend
+3. Look for the request to `/auth/google/authorize`
+4. Check the request URL - it should be: `https://api-dev.intentionalsocial.org/auth/google/authorize`
+5. If it shows `https://api.intentionalsocial.org` instead, your dev frontend's `VITE_API_URL` is wrong
+
+**Step 3: Check dev backend `FRONTEND_URL`**
+```bash
+# In your dev folder
+grep FRONTEND_URL backend/.env
+```
+Should show: `FRONTEND_URL=https://dev.intentional-social.pages.dev`
+
+**Step 4: Update if incorrect**
+```bash
+# Edit .env file
+nano backend/.env
+# Set: FRONTEND_URL=https://dev.intentional-social.pages.dev
+```
+
+**Step 5: Restart backend** (CRITICAL - .env changes require restart):
+```bash
+docker compose -f docker-compose-dev.yml restart backend
+```
+
+**Step 6: Verify the setting is loaded**
+```bash
+docker compose -f docker-compose-dev.yml exec backend python -c "from app.config import settings; print('FRONTEND_URL:', settings.FRONTEND_URL)"
+```
+Should output: `FRONTEND_URL: https://dev.intentional-social.pages.dev`
+
+**Step 7: Check backend logs during OAuth flow**
+```bash
+docker compose -f docker-compose-dev.yml logs -f backend
+```
+When you complete OAuth, you should see a log line like:
+```
+OAuth callback redirecting to: https://dev.intentional-social.pages.dev/login?code=...&state=...
+```
+
+**Step 8: Verify Google OAuth redirect URI**
+- In Google Cloud Console, make sure `https://api-dev.intentionalsocial.org/auth/google/callback` is in authorized redirect URIs
+- This is different from the `FRONTEND_URL` - this is where Google sends the callback
+
+**Common Issues:**
+- **Backend not restarted**: `.env` changes don't take effect until restart
+- **Testing from wrong frontend**: Make sure you're on `dev.intentional-social.pages.dev`, not `www.intentionalsocial.org`
+- **Frontend calling wrong backend**: Check `VITE_API_URL` in Cloudflare Pages environment variables for your dev branch
+- **Google OAuth redirect URI mismatch**: The redirect URI in Google Console must match `GOOGLE_REDIRECT_URI` in backend `.env`
 
 ### Database connection issues
 
