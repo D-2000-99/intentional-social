@@ -61,11 +61,12 @@ export default function AudienceSelector({ onAudienceChange }) {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="audience-button"
+                className="audience-pill"
                 aria-label="Select audience"
                 aria-expanded={isOpen}
             >
-                👁️ Visible to: <strong>{getAudienceSummary()}</strong>
+                <span className="audience-pill-icon">👁️</span>
+                <span className="audience-pill-text">{getAudienceSummary()}</span>
             </button>
 
             {isOpen && (

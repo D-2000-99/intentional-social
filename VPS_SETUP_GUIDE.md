@@ -766,4 +766,3 @@ If you encounter issues:
 **Cost:** $12-24/month (VPS) + $10-15/year (domain)
 
 Good luck! 🚀
-

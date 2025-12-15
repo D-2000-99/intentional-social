@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api";
 import imageCompression from "browser-image-compression";
-import ConnectionInsights from "../components/ConnectionInsights";
 
 export default function Profile() {
     const { username: urlUsername } = useParams();
@@ -15,7 +14,12 @@ export default function Profile() {
     const [uploading, setUploading] = useState(false);
     const [deletingPostId, setDeletingPostId] = useState(null);
     const [error, setError] = useState(null);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [isEditingBio, setIsEditingBio] = useState(false);
+    const [bioValue, setBioValue] = useState("");
+    const [updatingBio, setUpdatingBio] = useState(false);
     const fileInputRef = useRef(null);
+    const bioTextareaRef = useRef(null);
 
     const isOwnProfile = !urlUsername || urlUsername === currentUser?.username;
 
@@ -26,10 +30,12 @@ export default function Profile() {
                 if (isOwnProfile) {
                     // Viewing own profile
                     setProfileUser(currentUser);
+                    setBioValue(currentUser?.bio || "");
                 } else {
                     // Viewing another user's profile
                     const userData = await api.getUserByUsername(token, urlUsername);
                     setProfileUser(userData);
+                    setBioValue(userData?.bio || "");
                 }
             } catch (err) {
                 console.error("Failed to fetch profile", err);
@@ -43,6 +49,25 @@ export default function Profile() {
             fetchProfile();
         }
     }, [urlUsername, currentUser, token, isOwnProfile]);
+
+    // Update bio value when profileUser changes
+    useEffect(() => {
+        if (profileUser) {
+            setBioValue(profileUser.bio || "");
+        }
+    }, [profileUser]);
+
+    // Focus textarea when entering edit mode
+    useEffect(() => {
+        if (isEditingBio && bioTextareaRef.current) {
+            bioTextareaRef.current.focus();
+            // Move cursor to end
+            bioTextareaRef.current.setSelectionRange(
+                bioTextareaRef.current.value.length,
+                bioTextareaRef.current.value.length
+            );
+        }
+    }, [isEditingBio]);
 
     useEffect(() => {
         const fetchPosts = async () => {
@@ -140,6 +165,32 @@ export default function Profile() {
         }
     };
 
+    const handleBioSave = async () => {
+        if (!isOwnProfile) return;
+
+        setUpdatingBio(true);
+        setError(null);
+
+        try {
+            const updatedUser = await api.updateBio(token, bioValue.trim() || null);
+            setProfileUser(updatedUser);
+            setIsEditingBio(false);
+            // Refresh user in auth context
+            await refreshUser();
+        } catch (err) {
+            setError(err.message || "Failed to update bio");
+            console.error("Failed to update bio", err);
+        } finally {
+            setUpdatingBio(false);
+        }
+    };
+
+    const handleBioCancel = () => {
+        setBioValue(profileUser?.bio || "");
+        setIsEditingBio(false);
+        setError(null);
+    };
+
     if (loading || !profileUser) {
         return <div className="profile-container">Loading...</div>;
     }
@@ -150,6 +201,15 @@ export default function Profile() {
     return (
         <div className="profile-container">
             <div className="profile-card">
+                {isOwnProfile && (
+                    <button
+                        className="profile-settings-icon"
+                        onClick={() => setShowSettingsModal(true)}
+                        aria-label="Settings"
+                    >
+                        ⚙️
+                    </button>
+                )}
                 <div className="profile-header">
                     <div className="profile-avatar-section">
                         <div className="profile-avatar-wrapper">
@@ -191,41 +251,107 @@ export default function Profile() {
                         </div>
                     </div>
                     <h1 className="profile-name">{displayName}</h1>
-                    <div className="profile-details">
-                        {profileUser.username && (
-                            <div className="profile-detail-item">
-                                <span className="profile-detail-label">Username:</span>
-                                <span className="profile-detail-value">@{profileUser.username}</span>
+                    {profileUser.username && (
+                        <div className="profile-username">@{profileUser.username}</div>
+                    )}
+                    {/* Bio field */}
+                    <div className="profile-bio-container">
+                        {isEditingBio ? (
+                            <div className="profile-bio-edit">
+                                <textarea
+                                    ref={bioTextareaRef}
+                                    value={bioValue}
+                                    onChange={(e) => setBioValue(e.target.value)}
+                                    placeholder="Write a short note about yourself..."
+                                    className="profile-bio-textarea"
+                                    maxLength={500}
+                                    rows={3}
+                                    disabled={updatingBio}
+                                />
+                                <div className="profile-bio-char-count">{bioValue.length}/500</div>
+                                <div className="profile-bio-actions">
+                                    <button
+                                        type="button"
+                                        onClick={handleBioCancel}
+                                        className="secondary"
+                                        disabled={updatingBio}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleBioSave}
+                                        className="btn-primary"
+                                        disabled={updatingBio}
+                                    >
+                                        {updatingBio ? "Saving..." : "Save"}
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                        {isOwnProfile && (
-                            <div className="profile-detail-item">
-                                <span className="profile-detail-label">Email:</span>
-                                <span className="profile-detail-value">{profileUser.email}</span>
+                        ) : (
+                            <div className="profile-bio">
+                                {isOwnProfile ? (
+                                    <div className="profile-bio-display">
+                                        <span className="profile-bio-text">
+                                            {profileUser.bio || "Write a short note about yourself..."}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditingBio(true)}
+                                            className="profile-bio-edit-button"
+                                            aria-label="Edit bio"
+                                        >
+                                            ✏️
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span className="profile-bio-text">
+                                        {profileUser.bio || ""}
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
                     {error && (
                         <div className="profile-error">{error}</div>
                     )}
-                    {isOwnProfile && (
-                        <button 
-                            onClick={logout} 
-                            className="logout-btn profile-logout"
-                        >
-                            Logout
-                        </button>
-                    )}
                 </div>
             </div>
 
-            {/* Connection Insights - Only visible to profile owner */}
-            {isOwnProfile && <ConnectionInsights />}
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div 
+                    className="settings-modal-overlay"
+                    onClick={() => setShowSettingsModal(false)}
+                >
+                    <div 
+                        className="settings-modal"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="settings-modal-title">Settings</h3>
+                        <div className="settings-modal-content">
+                            <div className="settings-item">
+                                <span className="settings-label">Email:</span>
+                                <span className="settings-value">{profileUser.email}</span>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setShowSettingsModal(false);
+                                    logout();
+                                }}
+                                className="btn-primary settings-logout-btn"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* User's Posts */}
             <div className="profile-posts-section">
                 <h2 className="profile-posts-title">
-                    {isOwnProfile ? "My Posts" : `${displayName}'s Posts`} ({posts.length})
+                    {isOwnProfile ? "My Journal" : `${displayName}'s Posts`} ({posts.length})
                 </h2>
                 {posts.length === 0 ? (
                     <div className="empty-state">
@@ -234,7 +360,7 @@ export default function Profile() {
                 ) : (
                     <div className="feed-list">
                         {posts.map((post) => (
-                            <article key={post.id} className="post-card">
+                            <article key={post.id} className="post-card profile-post-card">
                                 <div className="post-meta">
                                     <span className="author-name">
                                         @{post.author.username}
@@ -280,7 +406,8 @@ export default function Profile() {
                                         ))}
                                     </div>
                                 )}
-                                {post.audience_tags && post.audience_tags.length > 0 && (
+                                {/* Only show tags if viewing own profile */}
+                                {isOwnProfile && post.audience_tags && post.audience_tags.length > 0 && (
                                     <div className="tags-container">
                                         {post.audience_tags.map((tag) => (
                                             <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>

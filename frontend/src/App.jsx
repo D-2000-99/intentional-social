@@ -4,8 +4,6 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
 import People from "./pages/People";
-import Search from "./pages/Search";
-import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import Profile from "./pages/Profile";
 import "./index.css";
@@ -86,8 +84,6 @@ const Layout = ({ children }) => {
                     <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Feed</Link>
-                        <Link to="/search" className={isActive("/search") ? "active" : ""}>Search</Link>
-                        <Link to="/requests" className={isActive("/requests") ? "active" : ""}>Requests</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
                         <Link to="/profile" className="user-profile-link">
                             {avatarUrl ? (
@@ -126,26 +122,6 @@ function AppRoutes() {
                     <PrivateRoute>
                         <Layout>
                             <Feed />
-                        </Layout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path="/search"
-                element={
-                    <PrivateRoute>
-                        <Layout>
-                            <Search />
-                        </Layout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path="/requests"
-                element={
-                    <PrivateRoute>
-                        <Layout>
-                            <Requests />
                         </Layout>
                     </PrivateRoute>
                 }

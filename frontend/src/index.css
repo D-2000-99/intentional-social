@@ -420,7 +420,7 @@ button:focus-visible,
   background-color: var(--surface-color);
   border-radius: 6px;
   padding: 24px;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
   box-shadow: var(--shadow-card);
 }
 
@@ -563,7 +563,7 @@ button:focus-visible,
   background-color: var(--surface-color);
   border-radius: 6px;
   padding: 24px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
   box-shadow: var(--shadow-card);
 }
 
@@ -649,6 +649,21 @@ button:focus-visible,
   opacity: 0.5;
 }
 
+/* Profile-specific delete button styling */
+.profile-post-card .delete-post-button {
+  opacity: 0;
+}
+
+.profile-post-card:hover .delete-post-button {
+  opacity: 1;
+}
+
+@media (max-width: 600px) {
+  .profile-post-card .delete-post-button {
+    opacity: 1; /* Keep visible on mobile */
+  }
+}
+
 .post-content {
   font-size: 15px;
   color: var(--text-main);
@@ -663,9 +678,10 @@ button:focus-visible,
 
 .empty-state {
   text-align: center;
-  color: var(--text-subtle);
+  color: #8C8C8C;
   margin-top: 3rem;
   font-size: 14px;
+  font-family: 'Lora', serif;
 }
 
 .empty-state p {
@@ -706,7 +722,7 @@ button:focus-visible,
   background: var(--surface-color);
   border-radius: 6px;
   padding: 24px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
   box-shadow: var(--shadow-card);
   display: flex;
   justify-content: space-between;
@@ -717,6 +733,7 @@ button:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
 }
 
 .username {
@@ -784,7 +801,6 @@ button:focus-visible,
   font-size: 14px;
   cursor: pointer;
   min-width: 180px;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .tag-filter-select:hover {
@@ -821,6 +837,48 @@ button:focus-visible,
   font-size: 16px;
   font-weight: 400;
   color: var(--text-subtle);
+}
+
+/* Unified Connections Page */
+.connections-unified-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.connections-section {
+  margin-bottom: 4rem;
+}
+
+.connections-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-family: 'Lora', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 1.5rem;
+}
+
+.subsection-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 1rem;
+  margin-top: 2rem;
+}
+
+.subsection-title:first-child {
+  margin-top: 0;
+}
+
+.requests-subsection {
+  margin-bottom: 2.5rem;
+}
+
+.requests-subsection:last-child {
+  margin-bottom: 0;
 }
 
 /* Remove all animations - Design Philosophy: Calm, No Distractions */
@@ -1264,8 +1322,13 @@ button:focus-visible,
   background-color: var(--surface-color);
   border-radius: 6px;
   padding: 40px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
   box-shadow: var(--shadow-card);
+  position: relative;
+}
+
+.profile-header {
+  position: relative;
 }
 
 .profile-header {
@@ -1441,7 +1504,19 @@ button:focus-visible,
   border-radius: 8px;
   padding: 32px;
   margin-top: 40px;
+  margin-bottom: 32px;
   box-shadow: var(--shadow-card);
+}
+
+.connections-hero {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.connections-hero .connection-insights {
+  text-align: center;
+  margin-top: 0;
 }
 
 .insights-title {
@@ -1521,6 +1596,40 @@ button:focus-visible,
   margin-top: 4px;
 }
 
+/* Combined Donut Chart */
+.combined-donut-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 24px 0;
+}
+
+.combined-donut-chart {
+  width: 200px;
+  height: 200px;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05));
+}
+
+.donut-segment {
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+.donut-segment:hover {
+  opacity: 0.9;
+  filter: brightness(1.1);
+}
+
+.donut-center-text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
 /* Tag Pie Chart */
 .tag-pie-container {
   display: flex;
@@ -1549,6 +1658,8 @@ button:focus-visible,
   gap: 12px;
   width: 100%;
   max-width: 300px;
+  margin: 0 auto;
+  margin-top: 32px;
 }
 
 .legend-item {
@@ -1578,5 +1689,341 @@ button:focus-visible,
 .legend-percentage {
   font-size: 14px;
   color: var(--text-subtle);
+  font-weight: 500;
+}
+
+/* Connections Page - Tabs */
+.connections-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.connections-tab {
+  background: transparent;
+  border: none;
+  padding: 12px 20px;
+  font-size: 14px;
+  color: var(--text-subtle);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connections-tab:hover {
+  color: var(--text-main);
+}
+
+.connections-tab.active {
+  color: var(--olive-primary);
+  border-bottom-color: var(--olive-primary);
+  font-weight: 500;
+}
+
+.tab-badge {
+  background: var(--olive-primary);
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+/* Connection Row Styling */
+.connection-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.connection-avatar-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.connection-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--olive-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'Lora', serif;
+}
+
+.connection-name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.username-secondary {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+/* Kebab Menu */
+.kebab-menu-container {
+  position: relative;
+}
+
+.kebab-menu-button {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  transform: rotate(90deg);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.kebab-menu-button:hover {
+  background: var(--paper-color);
+  color: var(--text-main);
+}
+
+.kebab-menu-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: var(--surface-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 150px;
+  z-index: 100;
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+}
+
+.kebab-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--text-main);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.kebab-menu-item:hover {
+  background: var(--paper-color);
+}
+
+.kebab-menu-item-danger {
+  color: #A85C4F;
+}
+
+.kebab-menu-item-danger:hover {
+  background: rgba(168, 92, 79, 0.1);
+}
+
+/* Profile Settings */
+.profile-settings-icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+.profile-settings-icon:hover {
+  opacity: 1;
+  background: var(--paper-color);
+}
+
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  background: var(--surface-color);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.settings-modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-main);
+  font-family: 'Lora', serif;
+}
+
+.settings-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-label {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 500;
+}
+
+.settings-value {
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.settings-logout-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Profile Bio */
+.profile-username {
+  font-size: 14px;
+  color: var(--text-subtle);
+  margin-bottom: 16px;
+}
+
+.profile-bio-container {
+  margin-bottom: 24px;
+}
+
+.profile-bio {
+  font-size: 14px;
+  color: var(--text-subtle);
+  min-height: 20px;
+}
+
+.profile-bio-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.profile-bio-text {
+  flex: 1;
+  font-style: italic;
+  color: var(--text-subtle);
+}
+
+.profile-bio-edit-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.profile-bio-edit-button:hover {
+  opacity: 1;
+}
+
+.profile-bio-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-bio-textarea {
+  width: 100%;
+  background-color: var(--paper-color);
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  padding: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text-main);
+  resize: vertical;
+  outline: none;
+  font-style: normal;
+}
+
+.profile-bio-textarea:focus {
+  border-color: var(--olive-primary);
+  outline: 2px solid var(--olive-primary);
+  outline-offset: 2px;
+}
+
+.profile-bio-textarea::placeholder {
+  color: var(--text-placeholder);
+  font-style: italic;
+}
+
+.profile-bio-char-count {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  text-align: right;
+}
+
+.profile-bio-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Profile Post Delete Icon - handled by delete-post-button styles above */
+
+/* Audience Pill */
+.audience-pill {
+  background: #E5E5E0;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+
+.audience-pill:hover {
+  background: #DDDDD8;
+}
+
+.audience-pill-icon {
+  font-size: 14px;
+}
+
+.audience-pill-text {
   font-weight: 500;
 }

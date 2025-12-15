@@ -16,7 +16,7 @@ export default function Feed() {
     const [photoPreviews, setPhotoPreviews] = useState([]);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
-    const { token } = useAuth();
+    const { token, user: currentUser } = useAuth();
 
     const fetchFeed = async (tagIds = []) => {
         try {
@@ -155,7 +155,8 @@ export default function Feed() {
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
                         placeholder="Share a meaningful thought..."
-                        rows="3"
+                        rows="4"
+                        style={{ minHeight: '120px' }}
                     />
                     
                     {/* Photo previews */}
@@ -247,7 +248,8 @@ export default function Feed() {
                                     ))}
                                 </div>
                             )}
-                            {post.audience_tags && post.audience_tags.length > 0 && (
+                            {/* Only show tags if this is the current user's own post */}
+                            {post.author_id === currentUser?.id && post.audience_tags && post.audience_tags.length > 0 && (
                                 <div className="tags-container">
                                     {post.audience_tags.map((tag) => (
                                         <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>

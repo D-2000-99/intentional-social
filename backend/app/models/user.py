@@ -17,6 +17,7 @@ class User(Base):
     picture_url = Column(String(500), nullable=True)  # From Google, user can override
     display_name = Column(String(255), nullable=True)  # User-customizable override for full_name
     avatar_url = Column(String(500), nullable=True)  # User-customizable override for picture_url
+    bio = Column(String(500), nullable=True)  # User bio/note
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")

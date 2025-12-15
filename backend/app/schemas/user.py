@@ -23,7 +23,12 @@ class UserOut(UserBase):
     picture_url: Optional[str] = None
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    bio: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UserBioUpdate(BaseModel):
+    bio: Optional[str] = None

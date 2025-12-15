@@ -22,7 +22,7 @@ from app.core.oauth import (
 from app.core.s3 import validate_image, upload_avatar_to_s3, generate_presigned_url, delete_photo_from_s3
 from app.config import settings
 from app.models.user import User
-from app.schemas.user import UserOut, UserCreate
+from app.schemas.user import UserOut, UserCreate, UserBioUpdate
 from app.schemas.auth import Token, GoogleOAuthCallbackRequest, GoogleOAuthCallbackResponse, UsernameSelectionRequest
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -396,4 +396,50 @@ async def update_user_avatar(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update avatar: {str(e)}"
+        )
+
+
+@router.put("/me/bio", response_model=UserOut)
+@rate_limit("10/minute")
+def update_user_bio(
+    payload: UserBioUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update user's bio/note.
+    Accepts a JSON body with optional bio field (max 500 characters).
+    """
+    try:
+        # Validate bio length if provided
+        if payload.bio is not None and len(payload.bio) > 500:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Bio must be 500 characters or less"
+            )
+        
+        # Update bio
+        current_user.bio = payload.bio
+        db.commit()
+        db.refresh(current_user)
+        
+        logger.info(f"User {current_user.id} updated bio")
+        
+        # Return user with presigned URL for avatar if needed
+        user_out = UserOut.model_validate(current_user)
+        if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+            try:
+                user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
+            except Exception as e:
+                logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
+        
+        return user_out
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating bio: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update bio: {str(e)}"
         )

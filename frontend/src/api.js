@@ -247,6 +247,9 @@ export const api = {
       });
   },
 
+  updateBio: (token, bio) =>
+    api.request("/auth/me/bio", "PUT", { bio }, token),
+
   getUserByUsername: (token, username) =>
     api.request(`/auth/user/${username}`, "GET", null, token),
 
