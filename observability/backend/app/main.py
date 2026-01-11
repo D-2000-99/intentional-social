@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -31,12 +31,21 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Share limiter with auth router
 auth.limiter = limiter
 
-# CORS configuration
-cors_origins = [origin.strip() for origin in settings.OBSERVABILITY_CORS_ORIGINS.split(",") if origin.strip()]
-logger.info(f"Configuring CORS with allowed origins: {cors_origins}")
+# Add middleware to log incoming Origin headers for debugging (before CORS)
+@app.middleware("http")
+async def log_cors_origin(request: Request, call_next):
+    origin = request.headers.get("origin")
+    if origin:
+        logger.info(f"Incoming request Origin header: '{origin}'")
+    response = await call_next(request)
+    return response
+
+# CORS configuration - match production backend pattern exactly
+cors_origins_list = [origin.strip() for origin in settings.OBSERVABILITY_CORS_ORIGINS.split(",") if origin.strip()]
+logger.info(f"Configuring CORS with allowed origins: {cors_origins_list}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -58,7 +67,7 @@ def debug_cors():
     """Debug endpoint to check CORS configuration (remove in production if needed)."""
     return {
         "cors_origins_raw": settings.OBSERVABILITY_CORS_ORIGINS,
-        "cors_origins_parsed": cors_origins,
+        "cors_origins_parsed": cors_origins_list,
     }
 
 
