@@ -31,23 +31,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Share limiter with auth router
 auth.limiter = limiter
 
-# Add middleware to log all requests for debugging
-@app.middleware("http")
-async def log_all_requests(request: Request, call_next):
-    origin = request.headers.get("origin")
-    method = request.method
-    path = request.url.path
-    logger.info(f"Incoming {method} request to {path} | Origin: {origin if origin else 'None'}")
-    response = await call_next(request)
-    logger.info(f"{method} {path} -> {response.status_code}")
-    return response
-
-# CORS configuration - match production backend pattern exactly
-cors_origins_list = [origin.strip() for origin in settings.OBSERVABILITY_CORS_ORIGINS.split(",") if origin.strip()]
-logger.info(f"Configuring CORS with allowed origins: {cors_origins_list}")
+# CORS configuration from environment variables
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins_list,
+    allow_origins=settings.OBSERVABILITY_CORS_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -64,13 +51,6 @@ def health():
     return {"status": "ok", "service": "observability-backend"}
 
 
-@app.get("/debug/cors")
-def debug_cors():
-    """Debug endpoint to check CORS configuration (remove in production if needed)."""
-    return {
-        "cors_origins_raw": settings.OBSERVABILITY_CORS_ORIGINS,
-        "cors_origins_parsed": cors_origins_list,
-    }
 
 
 if __name__ == "__main__":
