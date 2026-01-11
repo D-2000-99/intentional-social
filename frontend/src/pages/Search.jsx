@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { validateSearchQuery, sanitizeText } from "../utils/security";
 
 export default function Search() {
     const [query, setQuery] = useState("");
@@ -13,10 +14,17 @@ export default function Search() {
         e.preventDefault();
         if (!query.trim()) return;
 
+        // Validate and sanitize search query
+        const validation = validateSearchQuery(query);
+        if (!validation.isValid) {
+            setError(validation.error || 'Invalid search query');
+            return;
+        }
+
         setLoading(true);
         setError("");
         try {
-            const data = await api.searchUsers(token, query.trim());
+            const data = await api.searchUsers(token, validation.sanitized);
             setResults(data);
             if (data.length === 0) {
                 setError("No users found with that exact username or email");
@@ -68,13 +76,13 @@ export default function Search() {
                         {results.map((user) => (
                             <div key={user.id} className="user-card">
                                 <div className="user-info">
-                                    <span className="username">@{user.username || 'N/A'}</span>
-                                    <span className="email">{user.email}</span>
+                                    <span className="username">@{sanitizeText(user.username || 'N/A')}</span>
+                                    <span className="email">{sanitizeText(user.email || '')}</span>
                                 </div>
                                 <button 
                                     onClick={() => handleSendRequest(user.id)}
                                     className="btn-primary"
-                                    aria-label={`Send connection request to ${user.username || user.email}`}
+                                    aria-label={`Send connection request to ${sanitizeText(user.username || user.email || 'user')}`}
                                 >
                                     Send Request
                                 </button>

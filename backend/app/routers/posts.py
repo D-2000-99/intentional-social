@@ -8,8 +8,9 @@ from app.core.deps import get_db, get_current_user
 from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url, delete_photo_from_s3
 from app.models.post import Post
 from app.models.post_audience_tag import PostAudienceTag
+from app.models.reported_post import ReportedPost
 from app.models.tag import Tag
-from app.schemas.post import PostCreate, PostOut
+from app.schemas.post import PostCreate, PostOut, ReportPostRequest
 from app.models.user import User
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
@@ -379,6 +380,49 @@ def delete_post(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete post: {str(e)}"
         )
+
+
+@router.post("/{post_id}/report", status_code=status.HTTP_201_CREATED)
+def report_post(
+    post_id: int,
+    report_data: ReportPostRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Report a post for moderation.
+    """
+    # Verify post exists
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    # Check if user has already reported this post
+    existing_report = db.query(ReportedPost).filter(
+        ReportedPost.post_id == post_id,
+        ReportedPost.reported_by_id == current_user.id
+    ).first()
+    
+    if existing_report:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already reported this post"
+        )
+    
+    # Create report
+    report = ReportedPost(
+        post_id=post_id,
+        reported_by_id=current_user.id,
+        reason=report_data.reason
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    
+    return {"message": "Post reported successfully", "report_id": report.id}
 
 
 @router.get("/test-presigned/{s3_key:path}")

@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import TagPill from "../components/TagPill";
 import TagPicker from "../components/TagPicker";
 import ConnectionInsights from "../components/ConnectionInsights";
+import { sanitizeText, sanitizeUrlParam, validateSearchQuery } from "../utils/security";
 
 export default function Connections() {
     // Tab state
@@ -57,10 +58,17 @@ export default function Connections() {
         e.preventDefault();
         if (!query.trim()) return;
 
+        // Validate and sanitize search query
+        const validation = validateSearchQuery(query);
+        if (!validation.isValid) {
+            setSearchError(validation.error || 'Invalid search query');
+            return;
+        }
+
         setSearchLoading(true);
         setSearchError("");
         try {
-            const data = await api.searchUsers(token, query.trim());
+            const data = await api.searchUsers(token, validation.sanitized);
             setSearchResults(data);
             if (data.length === 0) {
                 setSearchError("No users found with that exact username or email");
@@ -245,12 +253,12 @@ export default function Connections() {
                             </div>
                             <div className="connection-name-group">
                 <Link 
-                    to={`/profile/${conn.other_user_username}`}
+                    to={`/profile/${sanitizeUrlParam(conn.other_user_username || '')}`}
                     className="username username-link"
                 >
-                                    {conn.other_user_email?.split('@')[0] || conn.other_user_username || 'Unknown'}
+                                    {sanitizeText(conn.other_user_email?.split('@')[0] || conn.other_user_username || 'Unknown')}
                 </Link>
-                                <span className="username-secondary">@{conn.other_user_username}</span>
+                                <span className="username-secondary">@{sanitizeText(conn.other_user_username || '')}</span>
                             </div>
                         </div>
                         {primaryTag && (
@@ -356,7 +364,7 @@ export default function Connections() {
                                 <option value="">All Connections</option>
                                 {allTags.map(tag => (
                                     <option key={tag.id} value={tag.id}>
-                                        {tag.name}
+                                        {sanitizeText(tag.name)}
                                     </option>
                                 ))}
                             </select>
@@ -401,8 +409,8 @@ export default function Connections() {
                                         {incoming.map((req) => (
                                             <div key={req.id} className="user-card">
                                                 <div className="user-info">
-                                                    <span className="username">@{req.other_user_username}</span>
-                                                    <span className="email">{req.other_user_email}</span>
+                                                    <span className="username">@{sanitizeText(req.other_user_username || '')}</span>
+                                                    <span className="email">{sanitizeText(req.other_user_email || '')}</span>
                                                     <span className="date">
                                                         {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </span>
@@ -411,14 +419,14 @@ export default function Connections() {
                                                     <button 
                                                         onClick={() => handleAccept(req.id)}
                                                         className="btn-primary"
-                                                        aria-label={`Accept request from ${req.other_user_username}`}
+                                                        aria-label={`Accept request from ${sanitizeText(req.other_user_username || '')}`}
                                                     >
                                                         Accept
                                                     </button>
                                                     <button
                                                         className="secondary"
                                                         onClick={() => handleReject(req.id)}
-                                                        aria-label={`Reject request from ${req.other_user_username}`}
+                                                        aria-label={`Reject request from ${sanitizeText(req.other_user_username || '')}`}
                                                     >
                                                         Reject
                                                     </button>
@@ -492,13 +500,13 @@ export default function Connections() {
                             {searchResults.map((user) => (
                                 <div key={user.id} className="user-card">
                                     <div className="user-info">
-                                        <span className="username">@{user.username || 'N/A'}</span>
-                                        <span className="email">{user.email}</span>
+                                    <span className="username">@{sanitizeText(user.username || 'N/A')}</span>
+                                    <span className="email">{sanitizeText(user.email || '')}</span>
                                     </div>
                                     <button 
                                         onClick={() => handleSendRequest(user.id)}
                                         className="btn-primary"
-                                        aria-label={`Send connection request to ${user.username || user.email}`}
+                                        aria-label={`Send connection request to ${sanitizeText(user.username || user.email || 'user')}`}
                                     >
                                         Send Request
                                     </button>

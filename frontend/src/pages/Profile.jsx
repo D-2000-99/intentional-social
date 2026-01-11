@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api";
 import imageCompression from "browser-image-compression";
+import PostCard from "../components/PostCard";
+import { sanitizeText, sanitizeUrlParam, validateBio } from "../utils/security";
 
 export default function Profile() {
     const { username: urlUsername } = useParams();
@@ -32,8 +34,9 @@ export default function Profile() {
                     setProfileUser(currentUser);
                     setBioValue(currentUser?.bio || "");
                 } else {
-                    // Viewing another user's profile
-                    const userData = await api.getUserByUsername(token, urlUsername);
+                    // Viewing another user's profile - sanitize username from URL
+                    const sanitizedUsername = sanitizeUrlParam(urlUsername);
+                    const userData = await api.getUserByUsername(token, sanitizedUsername);
                     setProfileUser(userData);
                     setBioValue(userData?.bio || "");
                 }
@@ -168,11 +171,18 @@ export default function Profile() {
     const handleBioSave = async () => {
         if (!isOwnProfile) return;
 
+        // Validate and sanitize bio
+        const validation = validateBio(bioValue, 500);
+        if (!validation.isValid) {
+            setError(validation.error || 'Invalid bio content');
+            return;
+        }
+
         setUpdatingBio(true);
         setError(null);
 
         try {
-            const updatedUser = await api.updateBio(token, bioValue.trim() || null);
+            const updatedUser = await api.updateBio(token, validation.sanitized || null);
             setProfileUser(updatedUser);
             setIsEditingBio(false);
             // Refresh user in auth context
@@ -250,9 +260,9 @@ export default function Profile() {
                             )}
                         </div>
                     </div>
-                    <h1 className="profile-name">{displayName}</h1>
+                    <h1 className="profile-name">{sanitizeText(displayName)}</h1>
                     {profileUser.username && (
-                        <div className="profile-username">@{profileUser.username}</div>
+                        <div className="profile-username">@{sanitizeText(profileUser.username)}</div>
                     )}
                     {/* Bio field */}
                     <div className="profile-bio-container">
@@ -293,7 +303,7 @@ export default function Profile() {
                                 {isOwnProfile ? (
                                     <div className="profile-bio-display">
                                         <span className="profile-bio-text">
-                                            {profileUser.bio || "Write a short note about yourself..."}
+                                            {sanitizeText(profileUser.bio || "Write a short note about yourself...")}
                                         </span>
                                         <button
                                             type="button"
@@ -306,7 +316,7 @@ export default function Profile() {
                                     </div>
                                 ) : (
                                     <span className="profile-bio-text">
-                                        {profileUser.bio || ""}
+                                        {sanitizeText(profileUser.bio || "")}
                                     </span>
                                 )}
                             </div>
@@ -360,63 +370,13 @@ export default function Profile() {
                 ) : (
                     <div className="feed-list">
                         {posts.map((post) => (
-                            <article key={post.id} className="post-card profile-post-card">
-                                <div className="post-meta">
-                                    <span className="author-name">
-                                        @{post.author.username}
-                                    </span>
-                                    <div className="post-meta-actions">
-                                        <span className="post-date">
-                                            {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </span>
-                                        {isOwnProfile && (
-                                            <button
-                                                onClick={() => handleDeletePost(post.id)}
-                                                disabled={deletingPostId === post.id}
-                                                className="delete-post-button"
-                                                title="Delete post"
-                                                aria-label="Delete post"
-                                            >
-                                                {deletingPostId === post.id ? "Deleting..." : "🗑️"}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                {post.content && (
-                                    <div className="post-content">
-                                        {post.content.split('\n').map((paragraph, idx) => (
-                                            <p key={idx}>{paragraph}</p>
-                                        ))}
-                                    </div>
-                                )}
-                                {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
-                                    <div className="post-photos">
-                                        {post.photo_urls_presigned.map((url, index) => (
-                                            <img
-                                                key={index}
-                                                src={url}
-                                                alt={`Post photo ${index + 1}`}
-                                                className="post-image"
-                                                loading="lazy"
-                                                onError={(e) => {
-                                                    console.error(`Failed to load image ${index + 1} for post ${post.id}`);
-                                                    e.target.style.display = 'none';
-                                                }}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                                {/* Only show tags if viewing own profile */}
-                                {isOwnProfile && post.audience_tags && post.audience_tags.length > 0 && (
-                                    <div className="tags-container">
-                                        {post.audience_tags.map((tag) => (
-                                            <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>
-                                                {tag.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </article>
+                            <PostCard 
+                                key={post.id} 
+                                post={post} 
+                                currentUser={currentUser}
+                                showDeleteButton={isOwnProfile}
+                                onPostDeleted={isOwnProfile ? handleDeletePost : undefined}
+                            />
                         ))}
                     </div>
                 )}

@@ -1,0 +1,43 @@
+# Docker Compose for observability PRODUCTION
+# Connects to the main backend's production database network
+# Usage: docker-compose -f docker-compose.prod.yml up
+#
+# Prerequisites:
+# - Main backend docker-compose.yml must be running first
+# - Set DATABASE_URL in .env to: postgresql://postgres:postgres@db:5432/intentional_social
+#
+# Ports:
+# - Observability Backend: 8002 (avoids conflict with prod backend on 8000 and dev on 8001)
+
+services:
+  obs-backend:
+    build:
+      context: ../
+      dockerfile: observability/backend/Dockerfile
+    ports:
+      - "127.0.0.1:8002:8001"
+    env_file:
+      - .env
+    # Connect to the production backend network to access shared database
+    networks:
+      - main-backend-network
+      - observability-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend is deployed on Cloudflare Pages, not in Docker
+  # Build with: cd observability/frontend && npm install && npm run build
+
+networks:
+  # Connect to production backend network (created by main backend docker-compose.yml)
+  main-backend-network:
+    external: true
+    name: social_100_default
+  observability-network:
+    driver: bridge
+

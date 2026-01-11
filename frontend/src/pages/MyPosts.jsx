@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import PostCard from "../components/PostCard";
 
 export default function MyPosts() {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [deletingPostId, setDeletingPostId] = useState(null);
-    const { token } = useAuth();
+    const { token, user: currentUser } = useAuth();
 
     const fetchMyPosts = async () => {
         setLoading(true);
@@ -71,59 +72,13 @@ export default function MyPosts() {
             ) : (
                 <div className="feed-list">
                     {posts.map((post) => (
-                        <article key={post.id} className="post-card">
-                            <div className="post-meta">
-                                <span className="author-name">{post.author.display_name || post.author.full_name || post.author.username}</span>
-                                <div className="post-meta-actions">
-                                    <span className="post-date">
-                                        {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </span>
-                                    <button
-                                        onClick={() => handleDeletePost(post.id)}
-                                        disabled={deletingPostId === post.id}
-                                        className="delete-post-button"
-                                        title="Delete post"
-                                        aria-label="Delete post"
-                                    >
-                                        {deletingPostId === post.id ? "Deleting..." : "🗑️"}
-                                    </button>
-                                </div>
-                            </div>
-                            {post.content && (
-                                <div className="post-content">
-                                    {post.content.split('\n').map((paragraph, idx) => (
-                                        <p key={idx}>{paragraph}</p>
-                                    ))}
-                                </div>
-                            )}
-                            {/* Display photos */}
-                            {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
-                                <div className="post-photos">
-                                    {post.photo_urls_presigned.map((url, index) => (
-                                        <img
-                                            key={index}
-                                            src={url}
-                                            alt={`Post photo ${index + 1}`}
-                                            className="post-image"
-                                            loading="lazy"
-                                            onError={(e) => {
-                                                console.error(`Failed to load image ${index + 1} for post ${post.id}`);
-                                                e.target.style.display = 'none';
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                            {post.audience_tags && post.audience_tags.length > 0 && (
-                                <div className="tags-container">
-                                    {post.audience_tags.map((tag) => (
-                                        <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>
-                                            {tag.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </article>
+                        <PostCard 
+                            key={post.id} 
+                            post={post} 
+                            currentUser={currentUser}
+                            showDeleteButton={true}
+                            onPostDeleted={handleDeletePost}
+                        />
                     ))}
                 </div>
             )}

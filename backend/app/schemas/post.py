@@ -31,3 +31,20 @@ class PostOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ReportPostRequest(BaseModel):
+    reason: Optional[str] = None  # Optional reason for reporting
+
+
+class ReportedPostOut(BaseModel):
+    id: int
+    post_id: int
+    reported_by_id: Optional[int] = None
+    reason: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolved_by_id: Optional[int] = None
+    
+    class Config:
+        from_attributes = True

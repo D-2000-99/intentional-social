@@ -16,3 +16,4 @@ class Post(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     author = relationship("User", back_populates="posts")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
 import imageCompression from "browser-image-compression";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import FeedFilterBar from "../components/FeedFilterBar";
 import AudienceSelector from "../components/AudienceSelector";
+import PostCard from "../components/PostCard";
+import { validateContent } from "../utils/security";
 
 export default function Feed() {
     const [posts, setPosts] = useState([]);
@@ -112,11 +113,22 @@ export default function Feed() {
         e.preventDefault();
         if (!content.trim() && selectedPhotos.length === 0) return;
 
+        // Validate and sanitize post content if provided
+        let sanitizedContent = '';
+        if (content.trim()) {
+            const validation = validateContent(content, 10000); // Max 10000 chars for posts
+            if (!validation.isValid) {
+                alert(validation.error || 'Invalid post content');
+                return;
+            }
+            sanitizedContent = validation.sanitized;
+        }
+
         setUploading(true);
         try {
             await api.createPost(
                 token,
-                content,
+                sanitizedContent,
                 audience.audience_type,
                 audience.audience_tag_ids,
                 selectedPhotos
@@ -211,54 +223,11 @@ export default function Feed() {
                     </div>
                 ) : (
                     posts.map((post) => (
-                        <article key={post.id} className="post-card">
-                            <div className="post-meta">
-                                <Link 
-                                    to={`/profile/${post.author.username}`}
-                                    className="author-name author-link"
-                                >
-                                    @{post.author.username}
-                                </Link>
-                                <span className="post-date">
-                                    {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </span>
-                            </div>
-                            {post.content && (
-                                <div className="post-content">
-                                    {post.content.split('\n').map((paragraph, idx) => (
-                                        <p key={idx}>{paragraph}</p>
-                                    ))}
-                                </div>
-                            )}
-                            {/* Display photos */}
-                            {post.photo_urls_presigned && post.photo_urls_presigned.length > 0 && (
-                                <div className="post-photos">
-                                    {post.photo_urls_presigned.map((url, index) => (
-                                        <img
-                                            key={index}
-                                            src={url}
-                                            alt={`Post photo ${index + 1}`}
-                                            className="post-image"
-                                            loading="lazy"
-                                            onError={(e) => {
-                                                console.error(`Failed to load image ${index + 1} for post ${post.id}`);
-                                                e.target.style.display = 'none';
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                            {/* Only show tags if this is the current user's own post */}
-                            {post.author_id === currentUser?.id && post.audience_tags && post.audience_tags.length > 0 && (
-                                <div className="tags-container">
-                                    {post.audience_tags.map((tag) => (
-                                        <span key={tag.id} className={`tag tag-${tag.color_scheme || 'generic'}`}>
-                                            {tag.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </article>
+                        <PostCard 
+                            key={post.id} 
+                            post={post} 
+                            currentUser={currentUser}
+                        />
                     ))
                 )}
             </div>

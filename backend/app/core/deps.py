@@ -38,4 +38,13 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
+    
+    # Check if user is banned
+    if user.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been banned. Please contact support if you believe this is an error.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     return user

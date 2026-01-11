@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { sanitizeText } from "../utils/security";
 
 export default function People() {
     const [users, setUsers] = useState([]);
@@ -110,21 +111,21 @@ export default function People() {
                     {users.map((u) => (
                         <div key={u.id} className="user-card">
                             <div className="user-info">
-                                <span className="username">@{u.username}</span>
+                                <span className="username">@{sanitizeText(u.username || '')}</span>
                                 <span className="joined">Joined {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                             </div>
                             <div className="actions">
                                 <button 
                                     onClick={() => handleFollow(u.id)}
                                     className="btn-primary"
-                                    aria-label={`Follow ${u.username}`}
+                                    aria-label={`Follow ${sanitizeText(u.username || '')}`}
                                 >
                                     Follow
                                 </button>
                                 <button 
                                     className="secondary" 
                                     onClick={() => handleUnfollow(u.id)}
-                                    aria-label={`Unfollow ${u.username}`}
+                                    aria-label={`Unfollow ${sanitizeText(u.username || '')}`}
                                 >
                                     Unfollow
                                 </button>

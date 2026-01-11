@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { validateUsername, sanitizeText } from "../utils/security";
 
 export default function UsernameSelectionModal({ user, onUsernameSelected, onCancel }) {
     const [username, setUsername] = useState("");
@@ -9,26 +10,16 @@ export default function UsernameSelectionModal({ user, onUsernameSelected, onCan
         e.preventDefault();
         setError("");
         
-        // Basic validation
-        if (!username || username.length < 3) {
-            setError("Username must be at least 3 characters long");
-            return;
-        }
-        
-        if (username.length > 50) {
-            setError("Username must be at most 50 characters long");
-            return;
-        }
-        
-        // Check for valid characters (letters, numbers, underscores, hyphens)
-        if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-            setError("Username can only contain letters, numbers, underscores, and hyphens");
+        // Validate username using security utility
+        const validation = validateUsername(username);
+        if (!validation.isValid) {
+            setError(validation.error || "Invalid username");
             return;
         }
         
         setLoading(true);
         try {
-            await onUsernameSelected(username.toLowerCase());
+            await onUsernameSelected(validation.sanitized.toLowerCase());
         } catch (err) {
             setError(err.message || "Failed to set username");
             setLoading(false);
@@ -69,7 +60,7 @@ export default function UsernameSelectionModal({ user, onUsernameSelected, onCan
                 
                 {user?.full_name && (
                     <p style={{ marginBottom: "10px" }}>
-                        <strong>Name:</strong> {user.full_name}
+                        <strong>Name:</strong> {sanitizeText(user.full_name)}
                     </p>
                 )}
                 

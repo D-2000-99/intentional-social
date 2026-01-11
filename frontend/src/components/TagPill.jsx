@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import { getPastelColorFromString, getContrastingTextColor } from '../utils/colors';
+import { sanitizeText, sanitizeUrlParam } from '../utils/security';
 
 export default function TagPill({ tag, selected, onRemove, onClick, clickable }) {
     // Use predefined color scheme if available, otherwise generate from name
@@ -37,13 +38,13 @@ export default function TagPill({ tag, selected, onRemove, onClick, clickable })
 
         return (
             <span className={classes} style={style} onClick={handleClick}>
-                {tag.name}
+                {sanitizeText(tag.name)}
                 {onRemove && (
                     <button
                         className="tag-pill__remove"
                         onClick={handleRemove}
                         type="button"
-                        aria-label={`Remove ${tag.name} tag`}
+                        aria-label={`Remove ${sanitizeText(tag.name)} tag`}
                     >
                         ×
                     </button>
@@ -83,13 +84,13 @@ export default function TagPill({ tag, selected, onRemove, onClick, clickable })
 
         return (
             <span className={classes} style={style} onClick={handleClick}>
-                {tag.name}
+                {sanitizeText(tag.name)}
                 {onRemove && (
                     <button
                         className="tag-pill__remove"
                         onClick={handleRemove}
                         type="button"
-                        aria-label={`Remove ${tag.name} tag`}
+                        aria-label={`Remove ${sanitizeText(tag.name)} tag`}
                         style={{ color: textColor }}
                     >
                         ×

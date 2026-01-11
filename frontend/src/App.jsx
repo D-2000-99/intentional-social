@@ -6,6 +6,7 @@ import Feed from "./pages/Feed";
 import People from "./pages/People";
 import Connections from "./pages/Connections";
 import Profile from "./pages/Profile";
+import { sanitizeText } from "./utils/security";
 import "./index.css";
 
 const PrivateRoute = ({ children }) => {
@@ -101,7 +102,7 @@ const Layout = ({ children }) => {
                                 className="user-profile-avatar-placeholder"
                                 style={{ display: avatarUrl ? 'none' : 'flex' }}
                             >
-                                {displayName.charAt(0).toUpperCase()}
+                                {sanitizeText(displayName).charAt(0).toUpperCase()}
                             </div>
                         </Link>
                     </div>

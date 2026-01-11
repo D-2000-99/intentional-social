@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import TagPill from './TagPill';
+import { validateContent, sanitizeText } from '../utils/security';
 
 export default function TagPicker({ onTagSelect, existingTagIds = [] }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -43,8 +44,15 @@ export default function TagPicker({ onTagSelect, existingTagIds = [] }) {
     const handleCreateTag = async () => {
         if (!searchQuery.trim()) return;
 
+        // Validate tag name (tags should be shorter, max 50 chars)
+        const validation = validateContent(searchQuery, 50);
+        if (!validation.isValid) {
+            alert(validation.error || 'Invalid tag name');
+            return;
+        }
+
         try {
-            const newTag = await api.createTag(token, searchQuery.trim());
+            const newTag = await api.createTag(token, validation.sanitized);
             setTags([...tags, newTag]);
             onTagSelect(newTag);
             setSearchQuery('');
@@ -112,7 +120,7 @@ export default function TagPicker({ onTagSelect, existingTagIds = [] }) {
                                         onClick={handleCreateTag}
                                         style={{ fontStyle: 'italic', color: 'var(--color-olive)' }}
                                     >
-                                        Create "{searchQuery}"
+                                        Create "{sanitizeText(searchQuery)}"
                                     </div>
                                 )}
 

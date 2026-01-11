@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import UsernameSelectionModal from "../components/UsernameSelectionModal";
+import { isValidOAuthUrl, sanitizeText } from "../utils/security";
 
 export default function Login() {
     const [error, setError] = useState("");
@@ -82,6 +83,11 @@ export default function Login() {
         try {
             // Get authorization URL and PKCE data from backend
             const data = await api.initiateGoogleOAuth();
+            
+            // Validate OAuth URL to prevent open redirect attacks
+            if (!isValidOAuthUrl(data.authorization_url, ['accounts.google.com'])) {
+                throw new Error("Invalid OAuth URL. Please try again.");
+            }
             
             // Store code_verifier and state in sessionStorage (temporary, cleared after use)
             sessionStorage.setItem("oauth_code_verifier", data.code_verifier);

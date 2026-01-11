@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.routers import auth, posts, feed, connections, tags, connection_tags, insights
+from app.routers import auth, posts, feed, connections, tags, connection_tags, insights, comments
 from app.config import settings
 
 # Configure logging
@@ -94,6 +94,7 @@ app.include_router(connections.router)
 app.include_router(connection_tags.router)
 app.include_router(tags.router)
 app.include_router(insights.router)
+app.include_router(comments.router)
 
 
 @app.get("/health")

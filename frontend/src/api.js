@@ -255,4 +255,14 @@ export const api = {
 
   getUserPosts: (token, userId) =>
     api.request(`/posts/user/${userId}`, "GET", null, token),
+
+  // Comments
+  getPostComments: (token, postId) =>
+    api.request(`/comments/posts/${postId}`, "GET", null, token),
+
+  createComment: (token, postId, content) =>
+    api.request("/comments/", "POST", { post_id: postId, content }, token),
+
+  reportPost: (token, postId, reason = null) =>
+    api.request(`/posts/${postId}/report`, "POST", { reason }, token),
 };
