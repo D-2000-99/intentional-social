@@ -31,13 +31,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Share limiter with auth router
 auth.limiter = limiter
 
-# Add middleware to log incoming Origin headers for debugging (before CORS)
+# Add middleware to log all requests for debugging
 @app.middleware("http")
-async def log_cors_origin(request: Request, call_next):
+async def log_all_requests(request: Request, call_next):
     origin = request.headers.get("origin")
-    if origin:
-        logger.info(f"Incoming request Origin header: '{origin}'")
+    method = request.method
+    path = request.url.path
+    logger.info(f"Incoming {method} request to {path} | Origin: {origin if origin else 'None'}")
     response = await call_next(request)
+    logger.info(f"{method} {path} -> {response.status_code}")
     return response
 
 # CORS configuration - match production backend pattern exactly
