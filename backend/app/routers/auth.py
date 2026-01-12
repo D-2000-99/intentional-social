@@ -284,8 +284,9 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current authenticated user's details"""
     user_out = UserOut.model_validate(current_user)
     
-    # If avatar_url is an S3 key, generate presigned URL
-    if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+    # If avatar_url is a storage key, generate presigned URL
+    avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
+    if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
         try:
             user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
         except Exception as e:
@@ -312,8 +313,9 @@ def get_user_by_username(
     
     user_out = UserOut.model_validate(user)
     
-    # If avatar_url is an S3 key, generate presigned URL
-    if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+    # If avatar_url is a storage key, generate presigned URL
+    avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
+    if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
         try:
             user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
         except Exception as e:
@@ -360,10 +362,11 @@ async def update_user_avatar(
             elif format_lower == 'webp':
                 file_extension = "webp"
         
-        # Delete old avatar from S3 if it exists and is an S3 URL
+        # Delete old avatar if it exists
         if current_user.avatar_url:
-            # Check if it's an S3 key (starts with our prefix)
-            if current_user.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+            # Check if it's a storage key (starts with our prefix)
+            avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
+            if current_user.avatar_url.startswith(avatar_prefix):
                 try:
                     delete_photo_from_s3(current_user.avatar_url)
                 except Exception as e:
@@ -427,7 +430,8 @@ def update_user_bio(
         
         # Return user with presigned URL for avatar if needed
         user_out = UserOut.model_validate(current_user)
-        if user_out.avatar_url and user_out.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
+        avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
+        if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
             try:
                 user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
             except Exception as e:

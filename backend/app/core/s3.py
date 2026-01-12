@@ -18,44 +18,53 @@ s3_client = None
 
 
 def get_s3_client():
-    """Lazy initialization of S3 client.
+    """Lazy initialization of S3-compatible client (R2).
     
     Raises:
-        ValueError: If AWS credentials or S3 bucket name are not configured.
+        ValueError: If R2 credentials or bucket name are not configured.
     """
     global s3_client
     if s3_client is None:
-        if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+        # Use R2 configuration (with fallback to legacy AWS_* variables for backward compatibility)
+        access_key = settings.R2_ACCESS_KEY_ID or settings.AWS_ACCESS_KEY_ID
+        secret_key = settings.R2_SECRET_ACCESS_KEY or settings.AWS_SECRET_ACCESS_KEY
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
+        endpoint_url = settings.R2_ENDPOINT_URL
+        
+        if not access_key or not secret_key:
             raise ValueError(
-                "AWS credentials not configured. "
-                "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."
+                "Storage credentials not configured. "
+                "Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY environment variables."
             )
         
-        if not settings.S3_BUCKET_NAME:
+        if not bucket_name:
             raise ValueError(
-                "S3_BUCKET_NAME not configured. "
-                "Set S3_BUCKET_NAME environment variable."
+                "Storage bucket name not configured. "
+                "Set R2_BUCKET_NAME environment variable."
             )
         
-        # Use the configured region - must match the bucket's region
-        # Ensure we use signature version 4 for pre-signed URLs
-        # Use virtual-hosted-style addressing to match AWS CLI behavior
-        # This ensures pre-signed URLs use the regional endpoint format
+        if not endpoint_url:
+            raise ValueError(
+                "R2 endpoint URL not configured. "
+                "Set R2_ENDPOINT_URL environment variable."
+            )
+        
+        # Configure for R2 (S3-compatible API)
+        # R2 uses s3v4 signatures and requires the endpoint URL
+        # For R2, we must use "auto" as the region (R2 doesn't accept AWS region names)
         s3_config = Config(
             signature_version='s3v4',
-            region_name=settings.AWS_REGION,
-            s3={
-                'addressing_style': 'virtual'  # Forces bucket.s3.region.amazonaws.com format
-            }
         )
+        
         s3_client = boto3.client(
             's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            endpoint_url=endpoint_url,
+            region_name='auto',  # Required for R2 - must be 'auto', not AWS regions
             config=s3_config
         )
-        logger.info(f"Initialized S3 client for bucket '{settings.S3_BUCKET_NAME}' in region '{settings.AWS_REGION}'")
+        logger.info(f"Initialized R2 client for bucket '{bucket_name}' at endpoint '{endpoint_url}'")
     return s3_client
 
 
@@ -141,7 +150,8 @@ def upload_photo_to_s3(file_content: bytes, post_id: int, user_id: int, file_ext
     # Generate unique filename: posts/photos/{user_id}/{post_id}/{uuid}.{ext}
     unique_id = str(uuid.uuid4())
     timestamp = datetime.utcnow().strftime("%Y%m%d")
-    s3_key = f"{settings.S3_PHOTO_PREFIX}/{user_id}/{post_id}/{timestamp}_{unique_id}.{file_extension}"
+    photo_prefix = settings.STORAGE_PHOTO_PREFIX or settings.S3_PHOTO_PREFIX
+    s3_key = f"{photo_prefix}/{user_id}/{post_id}/{timestamp}_{unique_id}.{file_extension}"
     
     try:
         # Upload to S3 with proper content type
@@ -153,13 +163,14 @@ def upload_photo_to_s3(file_content: bytes, post_id: int, user_id: int, file_ext
         }
         content_type = content_type_map.get(file_extension.lower(), 'image/jpeg')
         
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
         client.put_object(
-            Bucket=settings.S3_BUCKET_NAME,
+            Bucket=bucket_name,
             Key=s3_key,
             Body=file_content,
             ContentType=content_type,
             # Note: ACL is not set - rely on bucket policies for access control
-            # Objects are private by default in S3
+            # Objects are private by default
             Metadata={
                 'post_id': str(post_id),
                 'user_id': str(user_id),
@@ -195,16 +206,17 @@ def generate_presigned_url(s3_key: str, expiration: Optional[int] = None) -> str
     client = get_s3_client()
     
     if expiration is None:
-        expiration = settings.S3_PRESIGNED_URL_EXPIRATION
+        expiration = settings.STORAGE_PRESIGNED_URL_EXPIRATION or settings.S3_PRESIGNED_URL_EXPIRATION
     
     try:
         # Generate pre-signed URL directly without checking object existence
         # Note: s3:GetObject IAM permission is required (not s3:HeadObject)
         # The URL will only work if the object exists when accessed
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
         url = client.generate_presigned_url(
             'get_object',
             Params={
-                'Bucket': settings.S3_BUCKET_NAME,
+                'Bucket': bucket_name,
                 'Key': s3_key
             },
             ExpiresIn=expiration
@@ -217,7 +229,8 @@ def generate_presigned_url(s3_key: str, expiration: Optional[int] = None) -> str
         error_message = e.response.get('Error', {}).get('Message', str(e))
         logger.error(f"Error generating pre-signed URL for {s3_key}")
         logger.error(f"Error Code: {error_code}, Message: {error_message}")
-        logger.error(f"Bucket: {settings.S3_BUCKET_NAME}, Region: {settings.AWS_REGION}")
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
+        logger.error(f"Bucket: {bucket_name}")
         logger.error(f"Full error: {str(e)}")
         raise Exception(f"Failed to generate pre-signed URL ({error_code}): {error_message}")
 
@@ -253,7 +266,8 @@ def upload_avatar_to_s3(file_content: bytes, user_id: int, file_extension: str =
     # Generate unique filename: users/avatars/{user_id}/{uuid}.{ext}
     unique_id = str(uuid.uuid4())
     timestamp = datetime.utcnow().strftime("%Y%m%d")
-    s3_key = f"{settings.S3_AVATAR_PREFIX}/{user_id}/{timestamp}_{unique_id}.{file_extension}"
+    avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
+    s3_key = f"{avatar_prefix}/{user_id}/{timestamp}_{unique_id}.{file_extension}"
     
     try:
         # Upload to S3 with proper content type
@@ -265,8 +279,9 @@ def upload_avatar_to_s3(file_content: bytes, user_id: int, file_extension: str =
         }
         content_type = content_type_map.get(file_extension.lower(), 'image/jpeg')
         
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
         client.put_object(
-            Bucket=settings.S3_BUCKET_NAME,
+            Bucket=bucket_name,
             Key=s3_key,
             Body=file_content,
             ContentType=content_type,
@@ -297,8 +312,9 @@ def delete_photo_from_s3(s3_key: str) -> bool:
     client = get_s3_client()
     
     try:
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
         client.delete_object(
-            Bucket=settings.S3_BUCKET_NAME,
+            Bucket=bucket_name,
             Key=s3_key
         )
         logger.info(f"Successfully deleted photo from S3: {s3_key}")
