@@ -29,15 +29,34 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None  # Loaded from environment variable
     SMTP_FROM_EMAIL: Optional[str] = None
     
-    # S3 configuration for photo storage - Loaded from environment variables
-    # These are required if using S3 for file storage
-    AWS_ACCESS_KEY_ID: Optional[str] = None  # Must be set via environment variable
-    AWS_SECRET_ACCESS_KEY: Optional[str] = None  # Must be set via environment variable
-    AWS_REGION: str = "us-east-1"
-    S3_BUCKET_NAME: Optional[str] = None  # Must be set via environment variable
-    S3_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects in S3
-    S3_AVATAR_PREFIX: str = "users/avatars"  # Prefix for avatar objects in S3
-    S3_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
+    # Storage configuration - Loaded from environment variables
+    # Prefix settings (used for both S3 and R2)
+    STORAGE_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects
+    STORAGE_AVATAR_PREFIX: str = "users/avatars"  # Prefix for avatar objects
+    STORAGE_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
+    
+    # R2 (Cloudflare) configuration - Destination for migration and future use
+    R2_ACCESS_KEY_ID: Optional[str] = None  # R2 Access Key ID
+    R2_SECRET_ACCESS_KEY: Optional[str] = None  # R2 Secret Access Key
+    R2_ENDPOINT_URL: Optional[str] = None  # R2 endpoint URL (e.g., https://<account-id>.r2.cloudflarestorage.com)
+    R2_BUCKET_NAME: Optional[str] = None  # R2 bucket name
+    R2_REGION: str = "auto"  # R2 uses "auto" for compatibility
+    
+    # S3 (AWS) configuration - Source for migration (legacy)
+    S3_SOURCE_ACCESS_KEY_ID: Optional[str] = None  # S3 Access Key ID (source for migration)
+    S3_SOURCE_SECRET_ACCESS_KEY: Optional[str] = None  # S3 Secret Access Key (source for migration)
+    S3_SOURCE_REGION: str = "us-east-1"  # S3 bucket region
+    S3_SOURCE_BUCKET_NAME: Optional[str] = None  # S3 bucket name (source for migration)
+    
+    # Legacy aliases for backward compatibility (will be removed after migration)
+    # These map to R2 values after migration is complete
+    AWS_ACCESS_KEY_ID: Optional[str] = None  # DEPRECATED: Use R2_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None  # DEPRECATED: Use R2_SECRET_ACCESS_KEY
+    AWS_REGION: str = "auto"  # DEPRECATED: Use R2_REGION
+    S3_BUCKET_NAME: Optional[str] = None  # DEPRECATED: Use R2_BUCKET_NAME
+    S3_PHOTO_PREFIX: str = "posts/photos"  # DEPRECATED: Use STORAGE_PHOTO_PREFIX
+    S3_AVATAR_PREFIX: str = "users/avatars"  # DEPRECATED: Use STORAGE_AVATAR_PREFIX
+    S3_PRESIGNED_URL_EXPIRATION: int = 3600  # DEPRECATED: Use STORAGE_PRESIGNED_URL_EXPIRATION
     
     # Google OAuth configuration - Loaded from environment variables
     GOOGLE_CLIENT_ID: Optional[str] = None  # Must be set via environment variable
