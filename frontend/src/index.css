@@ -2533,7 +2533,7 @@ button:focus-visible,
   flex: 0 0 100%;
   scroll-snap-align: center;
   height: 100%;
-  overflow-y: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding: 64px 24px 24px;
@@ -2562,8 +2562,10 @@ button:focus-visible,
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 32px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .digest-image-container {

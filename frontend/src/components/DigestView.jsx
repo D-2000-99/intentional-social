@@ -5,17 +5,32 @@ import { useAuth } from "../context/AuthContext";
 export default function DigestView({ onSwitchToNow }) {
     const [digestData, setDigestData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [tagFilter, setTagFilter] = useState("all");
+    const [selectedTagId, setSelectedTagId] = useState(null);
+    const [tags, setTags] = useState([]);
     const scrollContainerRef = useRef(null);
     const { token } = useAuth();
 
     useEffect(() => {
+        fetchTags();
+    }, [token]);
+
+    useEffect(() => {
         fetchDigest();
-    }, [token, tagFilter]);
+    }, [token, selectedTagId]);
+
+    const fetchTags = async () => {
+        try {
+            const data = await api.getTags(token);
+            setTags(data);
+        } catch (err) {
+            console.error("Failed to fetch tags", err);
+        }
+    };
 
     const fetchDigest = async () => {
         try {
             setLoading(true);
+            const tagFilter = selectedTagId ? selectedTagId.toString() : "all";
             const data = await api.getDigest(token, tagFilter);
             setDigestData(data);
         } catch (err) {
@@ -49,13 +64,19 @@ export default function DigestView({ onSwitchToNow }) {
         return (
             <div className="digest-container">
                 <div className="digest-filter-bar">
-                    {["all", "friends", "family"].map((filter) => (
+                    <button
+                        onClick={() => setSelectedTagId(null)}
+                        className={`digest-filter-chip ${selectedTagId === null ? "active" : ""}`}
+                    >
+                        All
+                    </button>
+                    {tags.map((tag) => (
                         <button
-                            key={filter}
-                            onClick={() => setTagFilter(filter)}
-                            className={`digest-filter-chip ${tagFilter === filter ? "active" : ""}`}
+                            key={tag.id}
+                            onClick={() => setSelectedTagId(tag.id)}
+                            className={`digest-filter-chip ${selectedTagId === tag.id ? "active" : ""}`}
                         >
-                            {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                            {tag.name}
                         </button>
                     ))}
                 </div>
@@ -65,7 +86,7 @@ export default function DigestView({ onSwitchToNow }) {
                             <p className="digest-empty-icon">☕</p>
                             <h3 className="digest-empty-title">A Quiet Week</h3>
                             <p className="digest-empty-text">
-                                No updates from your {tagFilter === "all" ? "connections" : tagFilter} circle this week.
+                                No updates from your {selectedTagId === null ? "connections" : tags.find(t => t.id === selectedTagId)?.name || "connections"} circle this week.
                             </p>
                         </div>
                     </div>
@@ -81,13 +102,19 @@ export default function DigestView({ onSwitchToNow }) {
         <div className="digest-container">
             {/* Filter Bar */}
             <div className="digest-filter-bar">
-                {["all", "friends", "family"].map((filter) => (
+                <button
+                    onClick={() => setSelectedTagId(null)}
+                    className={`digest-filter-chip ${selectedTagId === null ? "active" : ""}`}
+                >
+                    All
+                </button>
+                {tags.map((tag) => (
                     <button
-                        key={filter}
-                        onClick={() => setTagFilter(filter)}
-                        className={`digest-filter-chip ${tagFilter === filter ? "active" : ""}`}
+                        key={tag.id}
+                        onClick={() => setSelectedTagId(tag.id)}
+                        className={`digest-filter-chip ${selectedTagId === tag.id ? "active" : ""}`}
                     >
-                        {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                        {tag.name}
                     </button>
                 ))}
             </div>
