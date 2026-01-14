@@ -265,4 +265,8 @@ export const api = {
 
   reportPost: (token, postId, reason = null) =>
     api.request(`/posts/${postId}/report`, "POST", { reason }, token),
+
+  // Digest
+  getDigest: (token, tagFilter = "all") =>
+    api.request(`/digest/?tag_filter=${encodeURIComponent(tagFilter)}`, "GET", null, token),
 };

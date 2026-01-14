@@ -84,7 +84,7 @@ const Layout = ({ children }) => {
                 <div className="nav-content">
                     <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
                     <div className="nav-links">
-                        <Link to="/" className={isActive("/") ? "active" : ""}>Feed</Link>
+                        <Link to="/" className={isActive("/") ? "active" : ""}>Home</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
                         <Link to="/profile" className="user-profile-link">
                             {avatarUrl ? (

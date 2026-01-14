@@ -2435,3 +2435,291 @@ button:focus-visible,
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Digest Feature Styles */
+.mode-toggle {
+  display: flex;
+  width: 100%;
+  border-bottom: 1px solid var(--color-divider);
+  margin-bottom: 24px;
+  background-color: var(--surface-color);
+}
+
+.mode-toggle-button {
+  flex: 1;
+  padding: 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.mode-toggle-button.active {
+  color: var(--text-main);
+  border-bottom-color: var(--text-main);
+}
+
+.mode-toggle-button:hover:not(.active) {
+  color: var(--text-main);
+}
+
+/* Digest Container */
+.digest-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: var(--paper-color);
+}
+
+.digest-filter-bar {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.digest-filter-chip {
+  pointer-events: auto;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-divider);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.digest-filter-chip.active {
+  background: var(--text-main);
+  color: white;
+  border-color: var(--text-main);
+}
+
+.digest-filter-chip:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-main);
+}
+
+/* Horizontal Scroll Container */
+.digest-scroll-container {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  height: calc(100vh - 200px);
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.digest-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.digest-page {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  height: 100%;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 64px 24px 24px;
+  position: relative;
+}
+
+/* Digest Header (Day Label) */
+.digest-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+  opacity: 0.8;
+}
+
+.digest-day-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* Digest Content */
+.digest-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 32px;
+}
+
+.digest-image-container {
+  width: 100%;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  border-radius: 4px;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.digest-image-border {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.digest-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(10%) contrast(95%);
+}
+
+/* Digest Summary Text */
+.digest-summary {
+  text-align: center;
+  padding: 0 16px;
+}
+
+.digest-summary-text {
+  font-family: 'Lora', serif;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--text-main);
+  opacity: 0.9;
+  margin-bottom: 16px;
+}
+
+.digest-summary-divider {
+  width: 32px;
+  height: 1px;
+  background: var(--text-subtle);
+  opacity: 0.3;
+  margin: 0 auto;
+}
+
+/* Digest Footer */
+.digest-footer {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.digest-mode-hint {
+  font-size: 10px;
+  color: var(--text-subtle);
+  opacity: 0.5;
+  font-family: 'Lora', serif;
+  font-style: italic;
+}
+
+/* Digest Summary Page */
+.digest-summary-page {
+  background-color: #F5F2EB;
+  justify-content: center;
+  align-items: center;
+}
+
+.digest-summary-content {
+  max-width: 320px;
+  text-align: center;
+}
+
+.digest-summary-title {
+  font-family: 'Lora', serif;
+  font-size: 24px;
+  font-style: italic;
+  color: var(--text-main);
+  margin-bottom: 24px;
+}
+
+.digest-summary-body {
+  font-family: 'Lora', serif;
+  font-size: 16px;
+  color: var(--text-subtle);
+  margin-bottom: 32px;
+  line-height: 1.75;
+}
+
+.digest-summary-divider-full {
+  width: 100%;
+  height: 1px;
+  background: var(--color-divider);
+  margin-bottom: 32px;
+}
+
+.digest-summary-end {
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-subtle);
+  margin-bottom: 8px;
+}
+
+.digest-return-button {
+  margin-top: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--text-main);
+  padding-bottom: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.digest-return-button:hover {
+  color: var(--text-subtle);
+  border-bottom-color: var(--text-subtle);
+}
+
+/* Digest Empty State */
+.digest-empty-state {
+  height: calc(100vh - 200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.digest-empty-content {
+  text-align: center;
+  padding: 32px;
+}
+
+.digest-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.digest-empty-title {
+  font-family: 'Lora', serif;
+  font-size: 20px;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.digest-empty-text {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-subtle);
+}

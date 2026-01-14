@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import imageCompression from "browser-image-compression";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import FeedFilterBar from "../components/FeedFilterBar";
 import AudienceSelector from "../components/AudienceSelector";
 import PostCard from "../components/PostCard";
+import DigestView from "../components/DigestView";
 import { validateContent } from "../utils/security";
 
 export default function Feed() {
+    const [mode, setMode] = useState("now"); // "now" or "digest"
     const [posts, setPosts] = useState([]);
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(true);
@@ -19,7 +21,8 @@ export default function Feed() {
     const fileInputRef = useRef(null);
     const { token, user: currentUser } = useAuth();
 
-    const fetchFeed = async (tagIds = []) => {
+    const fetchFeed = useCallback(async (tagIds = []) => {
+        setLoading(true);
         try {
             let data;
             if (tagIds.length > 0) {
@@ -44,11 +47,11 @@ export default function Feed() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token]);
 
     useEffect(() => {
         fetchFeed(selectedTagIds);
-    }, [token, selectedTagIds]);
+    }, [fetchFeed, selectedTagIds]);
 
     const compressImage = async (file) => {
         const options = {
@@ -158,9 +161,29 @@ export default function Feed() {
 
     return (
         <div className="feed-container">
-            <FeedFilterBar onFilterChange={setSelectedTagIds} />
+            {/* Mode Toggle */}
+            <div className="mode-toggle">
+                <button
+                    className={`mode-toggle-button ${mode === "now" ? "active" : ""}`}
+                    onClick={() => setMode("now")}
+                >
+                    Now
+                </button>
+                <button
+                    className={`mode-toggle-button ${mode === "digest" ? "active" : ""}`}
+                    onClick={() => setMode("digest")}
+                >
+                    Digest
+                </button>
+            </div>
 
-            <section className="create-post-card">
+            {mode === "digest" ? (
+                <DigestView onSwitchToNow={() => setMode("now")} />
+            ) : (
+                <>
+                    <FeedFilterBar onFilterChange={setSelectedTagIds} />
+
+                    <section className="create-post-card">
                 <div className="create-header">What's on your mind?</div>
                 <form onSubmit={handlePost}>
                     <textarea
@@ -231,6 +254,8 @@ export default function Feed() {
                     ))
                 )}
             </div>
+                </>
+            )}
         </div>
     );
 }

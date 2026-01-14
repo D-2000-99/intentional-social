@@ -1,0 +1,16 @@
+services:
+  ai_service:
+    build: .
+    env_file:
+      - ./.env
+    # Connect to the main backend's database network
+    # This allows using "db" as hostname in DATABASE_URL
+    networks:
+      - social_100_default
+    restart: "no"  # Don't restart - exit after batch processing completes
+    # No ports exposed - this is a batch processing service
+
+networks:
+  social_100_default:
+    external: true
+
