@@ -14,7 +14,7 @@ class TagUpdate(BaseModel):
 
 class TagOut(BaseModel):
     id: int
-    user_id: int
+    owner_user_id: int
     name: str
     color_scheme: str
     created_at: datetime

@@ -17,7 +17,7 @@ def get_user_tags(
     """Get all tags for the current user"""
     tags = (
         db.query(Tag)
-        .filter(Tag.user_id == current_user.id)
+        .filter(Tag.owner_user_id == current_user.id)
         .order_by(Tag.created_at)
         .all()
     )
@@ -34,7 +34,7 @@ def create_tag(
     # Check if tag name already exists for this user
     existing = (
         db.query(Tag)
-        .filter(Tag.user_id == current_user.id, Tag.name == payload.name)
+        .filter(Tag.owner_user_id == current_user.id, Tag.name == payload.name)
         .first()
     )
     
@@ -45,7 +45,7 @@ def create_tag(
         )
     
     new_tag = Tag(
-        user_id=current_user.id,
+        owner_user_id=current_user.id,
         name=payload.name,
         color_scheme=payload.color_scheme,
     )
@@ -65,7 +65,7 @@ def update_tag(
     current_user: User = Depends(get_current_user),
 ):
     """Update a tag"""
-    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(
@@ -78,7 +78,7 @@ def update_tag(
         existing = (
             db.query(Tag)
             .filter(
-                Tag.user_id == current_user.id,
+                Tag.owner_user_id == current_user.id,
                 Tag.name == payload.name,
                 Tag.id != tag_id,
             )
@@ -107,7 +107,7 @@ def delete_tag(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a tag"""
-    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(

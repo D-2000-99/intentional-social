@@ -16,7 +16,7 @@ from app.core.llm import generate_weekly_summary
 from app.models.user import User
 from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
-from app.models.connection_tag import ConnectionTag
+from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
 from app.models.tag import Tag
 from app.schemas.post import PostOut
@@ -152,8 +152,8 @@ def get_digest(
         db.query(Connection)
         .filter(
             or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.ACCEPTED,
         )
@@ -163,10 +163,10 @@ def get_digest(
     # Extract connected user IDs
     connected_user_ids = []
     for conn in my_connections:
-        if conn.requester_id == current_user.id:
-            connected_user_ids.append(conn.recipient_id)
+        if conn.user_a_id == current_user.id:
+            connected_user_ids.append(conn.user_b_id)
         else:
-            connected_user_ids.append(conn.requester_id)
+            connected_user_ids.append(conn.user_a_id)
     
     # Add own user ID to see own posts
     connected_user_ids.append(current_user.id)
@@ -176,21 +176,23 @@ def get_digest(
         # Specific tag ID provided
         try:
             tag_id = int(tag_filter)
-            tagged_connections = (
-                db.query(ConnectionTag.connection_id)
-                .filter(ConnectionTag.tag_id == tag_id)
+            # Get users that have this tag (where current user is the owner)
+            tagged_user_ids = (
+                db.query(UserTag.target_user_id)
+                .filter(
+                    UserTag.owner_user_id == current_user.id,
+                    UserTag.tag_id == tag_id
+                )
                 .distinct()
                 .all()
             )
-            tagged_connection_ids = [tc[0] for tc in tagged_connections]
+            tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
             
-            filtered_user_ids = []
-            for conn in my_connections:
-                if conn.id in tagged_connection_ids:
-                    if conn.requester_id == current_user.id:
-                        filtered_user_ids.append(conn.recipient_id)
-                    else:
-                        filtered_user_ids.append(conn.requester_id)
+            # Filter connected_user_ids to only those with the selected tag
+            filtered_user_ids = [
+                user_id for user_id in connected_user_ids
+                if user_id in tagged_user_id_set
+            ]
             
             connected_user_ids = filtered_user_ids
         except ValueError:
@@ -199,23 +201,25 @@ def get_digest(
     elif tag_filter in ["friends", "family"]:
         # Filter by tag color_scheme
         tag_scheme = tag_filter  # "friends" or "family"
-        tagged_connections = (
-            db.query(ConnectionTag.connection_id)
-            .join(Tag, ConnectionTag.tag_id == Tag.id)
-            .filter(Tag.user_id == current_user.id)
-            .filter(Tag.color_scheme == tag_scheme)
+        # Get users that have tags with this color_scheme (where current user is the owner)
+        tagged_user_ids = (
+            db.query(UserTag.target_user_id)
+            .join(Tag, UserTag.tag_id == Tag.id)
+            .filter(
+                UserTag.owner_user_id == current_user.id,
+                Tag.owner_user_id == current_user.id,
+                Tag.color_scheme == tag_scheme
+            )
             .distinct()
             .all()
         )
-        tagged_connection_ids = [tc[0] for tc in tagged_connections]
+        tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
         
-        filtered_user_ids = []
-        for conn in my_connections:
-            if conn.id in tagged_connection_ids:
-                if conn.requester_id == current_user.id:
-                    filtered_user_ids.append(conn.recipient_id)
-                else:
-                    filtered_user_ids.append(conn.requester_id)
+        # Filter connected_user_ids to only those with tags of this color_scheme
+        filtered_user_ids = [
+            user_id for user_id in connected_user_ids
+            if user_id in tagged_user_id_set
+        ]
         
         connected_user_ids = filtered_user_ids
     
@@ -270,25 +274,20 @@ def get_digest(
                 filtered_posts.append(post)
                 continue
             
-            connection = next(
-                (c for c in my_connections 
-                 if (c.requester_id == post.author_id and c.recipient_id == current_user.id) or
-                    (c.recipient_id == post.author_id and c.requester_id == current_user.id)),
-                None
+            # Check if post author has tagged current_user with any of the required tags
+            # The post author is the owner, current_user is the target
+            user_tags = (
+                db.query(UserTag.tag_id)
+                .filter(
+                    UserTag.owner_user_id == post.author_id,
+                    UserTag.target_user_id == current_user.id,
+                    UserTag.tag_id.in_(post_tag_ids)
+                )
+                .first()
             )
             
-            if connection:
-                connection_tags = (
-                    db.query(ConnectionTag.tag_id)
-                    .filter(
-                        ConnectionTag.connection_id == connection.id,
-                        ConnectionTag.tag_id.in_(post_tag_ids)
-                    )
-                    .first()
-                )
-                
-                if connection_tags:
-                    filtered_posts.append(post)
+            if user_tags:
+                filtered_posts.append(post)
     
     # Apply Digest filtering rules (different from feed)
     # This is where we differentiate Digest from Feed

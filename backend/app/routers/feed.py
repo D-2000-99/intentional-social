@@ -7,7 +7,7 @@ from app.core.s3 import generate_presigned_urls
 from app.models.user import User
 from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
-from app.models.connection_tag import ConnectionTag
+from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
 from app.models.tag import Tag
 from app.schemas.post import PostOut
@@ -28,13 +28,13 @@ def get_feed(
     Optionally filter by tags.
     """
     
-    # Get all accepted connections where I'm either requester or recipient
+    # Get all accepted connections where I'm either user_a or user_b
     my_connections = (
         db.query(Connection)
         .filter(
             or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.ACCEPTED,
         )
@@ -44,10 +44,10 @@ def get_feed(
     # Extract the IDs of connected users
     connected_user_ids = []
     for conn in my_connections:
-        if conn.requester_id == current_user.id:
-            connected_user_ids.append(conn.recipient_id)
+        if conn.user_a_id == current_user.id:
+            connected_user_ids.append(conn.user_b_id)
         else:
-            connected_user_ids.append(conn.requester_id)
+            connected_user_ids.append(conn.user_a_id)
     
     # Add own user ID to see own posts in feed
     connected_user_ids.append(current_user.id)
@@ -56,23 +56,23 @@ def get_feed(
     if tag_ids:
         tag_id_list = [int(tid) for tid in tag_ids.split(",")]
         
-        # Get connections that have any of these tags
-        tagged_connections = (
-            db.query(ConnectionTag.connection_id)
-            .filter(ConnectionTag.tag_id.in_(tag_id_list))
+        # Get users that have any of these tags (where current user is the owner)
+        tagged_user_ids = (
+            db.query(UserTag.target_user_id)
+            .filter(
+                UserTag.owner_user_id == current_user.id,
+                UserTag.tag_id.in_(tag_id_list)
+            )
             .distinct()
             .all()
         )
-        tagged_connection_ids = [tc[0] for tc in tagged_connections]
+        tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
         
         # Filter connected_user_ids to only those with the selected tags
-        filtered_user_ids = []
-        for conn in my_connections:
-            if conn.id in tagged_connection_ids:
-                if conn.requester_id == current_user.id:
-                    filtered_user_ids.append(conn.recipient_id)
-                else:
-                    filtered_user_ids.append(conn.requester_id)
+        filtered_user_ids = [
+            user_id for user_id in connected_user_ids
+            if user_id in tagged_user_id_set
+        ]
         
         # When tag filtering is active, exclude own posts - only show posts from tagged connections
         connected_user_ids = filtered_user_ids
@@ -125,27 +125,20 @@ def get_feed(
                 filtered_posts.append(post)
                 continue
             
-            # Get the connection between current_user and post author
-            connection = next(
-                (c for c in my_connections 
-                 if (c.requester_id == post.author_id and c.recipient_id == current_user.id) or
-                    (c.recipient_id == post.author_id and c.requester_id == current_user.id)),
-                None
+            # Check if post author has tagged current_user with any of the required tags
+            # The post author is the owner, current_user is the target
+            user_tags = (
+                db.query(UserTag.tag_id)
+                .filter(
+                    UserTag.owner_user_id == post.author_id,
+                    UserTag.target_user_id == current_user.id,
+                    UserTag.tag_id.in_(post_tag_ids)
+                )
+                .first()
             )
             
-            if connection:
-                # Check if this connection has any of the required tags (from author's perspective)
-                connection_tags = (
-                    db.query(ConnectionTag.tag_id)
-                    .filter(
-                        ConnectionTag.connection_id == connection.id,
-                        ConnectionTag.tag_id.in_(post_tag_ids)
-                    )
-                    .first()
-                )
-                
-                if connection_tags:
-                    filtered_posts.append(post)
+            if user_tags:
+                filtered_posts.append(post)
 
     # Convert posts to PostOut with pre-signed URLs for photos
     result = []

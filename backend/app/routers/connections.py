@@ -33,8 +33,8 @@ def send_connection_request(
         db.query(Connection)
         .filter(
             or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.ACCEPTED,
         )
@@ -58,20 +58,16 @@ def send_connection_request(
             detail="User not found",
         )
     
-    # Check for existing connection in either direction
+    # Check for existing connection (direction doesn't matter)
+    # Normalize: ensure user_a_id < user_b_id for consistency
+    user_a_id = min(current_user.id, recipient_id)
+    user_b_id = max(current_user.id, recipient_id)
+    
     existing = (
         db.query(Connection)
         .filter(
-            or_(
-                and_(
-                    Connection.requester_id == current_user.id,
-                    Connection.recipient_id == recipient_id,
-                ),
-                and_(
-                    Connection.requester_id == recipient_id,
-                    Connection.recipient_id == current_user.id,
-                ),
-            )
+            Connection.user_a_id == user_a_id,
+            Connection.user_b_id == user_b_id,
         )
         .first()
     )
@@ -79,28 +75,23 @@ def send_connection_request(
     if existing:
         if existing.status == ConnectionStatus.PENDING:
             # If they sent us a request, auto-accept it
-            if existing.requester_id == recipient_id:
-                existing.status = ConnectionStatus.ACCEPTED
-                db.commit()
-                logger.info(
-                    f"Mutual connection auto-accepted between users {current_user.id} and {recipient_id}"
-                )
-                return {"detail": "Connection accepted (mutual request)", "connection_id": existing.id}
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Connection request already sent",
-                )
+            # Since direction doesn't matter, if status is PENDING, we can auto-accept
+            existing.status = ConnectionStatus.ACCEPTED
+            db.commit()
+            logger.info(
+                f"Mutual connection auto-accepted between users {current_user.id} and {recipient_id}"
+            )
+            return {"detail": "Connection accepted (mutual request)", "connection_id": existing.id}
         elif existing.status == ConnectionStatus.ACCEPTED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Already connected",
             )
     
-    # Create new connection request
+    # Create new connection request (normalized: user_a_id < user_b_id)
     new_connection = Connection(
-        requester_id=current_user.id,
-        recipient_id=recipient_id,
+        user_a_id=user_a_id,
+        user_b_id=user_b_id,
         status=ConnectionStatus.PENDING,
     )
     db.add(new_connection)
@@ -118,27 +109,36 @@ def get_incoming_requests(
 ):
     """Get all pending connection requests sent to me."""
     
+    # Get pending connections where current user is involved
     # Use joinedload to avoid N+1 queries (loads users in single query)
     requests = (
         db.query(Connection)
-        .options(joinedload(Connection.requester))
+        .options(joinedload(Connection.user_a), joinedload(Connection.user_b))
         .filter(
-            Connection.recipient_id == current_user.id,
+            or_(
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
+            ),
             Connection.status == ConnectionStatus.PENDING,
         )
         .all()
     )
     
-    return [
-        ConnectionWithUser(
-            id=req.id,
-            status=req.status.value,  # Convert enum to string for response
-            created_at=req.created_at,
-            other_user_id=req.requester.id,
-            other_user_username=req.requester.username,
+    result = []
+    for req in requests:
+        # Determine the other user
+        other_user = req.user_b if req.user_a_id == current_user.id else req.user_a
+        result.append(
+            ConnectionWithUser(
+                id=req.id,
+                status=req.status.value,  # Convert enum to string for response
+                created_at=req.created_at,
+                other_user_id=other_user.id,
+                other_user_username=other_user.username,
+            )
         )
-        for req in requests
-    ]
+    
+    return result
 
 
 @router.get("/requests/outgoing", response_model=list[ConnectionWithUser])
@@ -148,27 +148,36 @@ def get_outgoing_requests(
 ):
     """Get all pending connection requests I sent."""
     
+    # Get pending connections where current user is involved
     # Use joinedload to avoid N+1 queries
     requests = (
         db.query(Connection)
-        .options(joinedload(Connection.recipient))
+        .options(joinedload(Connection.user_a), joinedload(Connection.user_b))
         .filter(
-            Connection.requester_id == current_user.id,
+            or_(
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
+            ),
             Connection.status == ConnectionStatus.PENDING,
         )
         .all()
     )
     
-    return [
-        ConnectionWithUser(
-            id=req.id,
-            status=req.status.value,
-            created_at=req.created_at,
-            other_user_id=req.recipient.id,
-            other_user_username=req.recipient.username,
+    result = []
+    for req in requests:
+        # Determine the other user
+        other_user = req.user_b if req.user_a_id == current_user.id else req.user_a
+        result.append(
+            ConnectionWithUser(
+                id=req.id,
+                status=req.status.value,
+                created_at=req.created_at,
+                other_user_id=other_user.id,
+                other_user_username=other_user.username,
+            )
         )
-        for req in requests
-    ]
+    
+    return result
 
 
 @router.post("/accept/{connection_id}")
@@ -187,11 +196,11 @@ def accept_connection_request(
             detail="Connection request not found",
         )
     
-    # Must be the recipient to accept
-    if connection.recipient_id != current_user.id:
+    # Must be part of the connection to accept
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only accept requests sent to you",
+            detail="Not authorized",
         )
     
     if connection.status == ConnectionStatus.ACCEPTED:
@@ -205,8 +214,8 @@ def accept_connection_request(
         db.query(Connection)
         .filter(
             or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.ACCEPTED,
         )
@@ -222,8 +231,9 @@ def accept_connection_request(
     connection.status = ConnectionStatus.ACCEPTED
     db.commit()
     
+    other_user_id = connection.user_b_id if connection.user_a_id == current_user.id else connection.user_a_id
     logger.info(
-        f"User {current_user.id} accepted connection request {connection_id} from user {connection.requester_id}"
+        f"User {current_user.id} accepted connection request {connection_id} with user {other_user_id}"
     )
     return {"detail": "Connection accepted"}
 
@@ -244,8 +254,8 @@ def reject_connection_request(
             detail="Connection request not found",
         )
     
-    # Must be either the requester or recipient
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+    # Must be part of the connection
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
@@ -265,14 +275,14 @@ def get_connections(
 ):
     """Get all accepted connections."""
     
-    # Use joinedload for both requester and recipient to avoid N+1 queries
+    # Use joinedload for both user_a and user_b to avoid N+1 queries
     connections = (
         db.query(Connection)
-        .options(joinedload(Connection.requester), joinedload(Connection.recipient))
+        .options(joinedload(Connection.user_a), joinedload(Connection.user_b))
         .filter(
             or_(
-                Connection.requester_id == current_user.id,
-                Connection.recipient_id == current_user.id,
+                Connection.user_a_id == current_user.id,
+                Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.ACCEPTED,
         )
@@ -282,7 +292,7 @@ def get_connections(
     result = []
     for conn in connections:
         # Determine the other user (already loaded via joinedload)
-        other_user = conn.recipient if conn.requester_id == current_user.id else conn.requester
+        other_user = conn.user_b if conn.user_a_id == current_user.id else conn.user_a
         
         result.append(
             ConnectionWithUser(
@@ -314,7 +324,7 @@ def disconnect(
         )
     
     # Must be part of the connection
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",

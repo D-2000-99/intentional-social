@@ -12,15 +12,15 @@ class ConnectionRequest(BaseModel):
 
 class ConnectionOut(BaseModel):
     id: int
-    requester_id: int
-    recipient_id: int
+    user_a_id: int
+    user_b_id: int
     status: str
     created_at: datetime
     updated_at: datetime
     
     # Include user details for easier frontend display
-    requester_username: str | None = None
-    recipient_username: str | None = None
+    user_a_username: str | None = None
+    user_b_username: str | None = None
 
     class Config:
         from_attributes = True
