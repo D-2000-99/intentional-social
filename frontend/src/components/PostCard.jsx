@@ -91,23 +91,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         }
     };
 
-    const handlePostClick = (e) => {
-        // Don't expand if clicking on links, buttons, or interactive elements
-        if (e.target.tagName === 'A' || 
-            e.target.tagName === 'BUTTON' || 
-            e.target.tagName === 'TEXTAREA' ||
-            e.target.closest('a') || 
-            e.target.closest('button') ||
-            e.target.closest('.comments-section') ||
-            e.target.closest('.comment-form') ||
-            e.target.closest('.kebab-menu-container')) {
-            return;
-        }
-        handleToggleComments();
-    };
-
     return (
-        <article className="post-card clickable-post" onClick={handlePostClick}>
+        <article className="post-card">
             <div className="post-meta">
                 {post.author ? (
                     <Link 
@@ -200,9 +185,10 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             )}
 
             {/* Comments section */}
-            <div className="comments-section" onClick={(e) => e.stopPropagation()}>
+            <div className="comments-section">
                 <div 
                     className="comments-toggle-button"
+                    onClick={handleToggleComments}
                     aria-expanded={commentsExpanded}
                 >
                     {commentsExpanded ? "▼" : "▶"} Comments {comments.length > 0 && `(${comments.length})`}

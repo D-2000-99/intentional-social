@@ -2306,6 +2306,11 @@ button:focus-visible,
   font-family: inherit;
   transition: color 0.2s;
   user-select: none;
+  cursor: pointer;
+}
+
+.comments-toggle-button:hover {
+  color: var(--text-main, #2C2C2C);
 }
 
 .post-card.clickable-post {
