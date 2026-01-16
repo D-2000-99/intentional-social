@@ -28,6 +28,8 @@ def get_feed(
     Optionally filter by tags.
     """
     
+    print(f"Raw tag_ids param: {tag_ids} ({type(tag_ids)})")
+
     # Get all accepted connections where I'm either user_a or user_b
     my_connections = (
         db.query(Connection)
@@ -151,7 +153,7 @@ def get_feed(
                 photo_urls_presigned = generate_presigned_urls(post.photo_urls)
             except Exception as e:
                 # Log error for debugging
-                import logging
+                
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
                 logger.error(f"Photo URLs: {post.photo_urls}")
