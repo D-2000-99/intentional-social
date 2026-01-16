@@ -13,6 +13,7 @@ from sqlalchemy import or_, and_
 from app.core.deps import get_db, get_current_user
 from app.core.s3 import generate_presigned_urls
 from app.core.llm import generate_weekly_summary
+from app.config import settings
 from app.models.user import User
 from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
@@ -30,11 +31,23 @@ def get_week_bounds(date: Optional[datetime] = None) -> tuple[datetime, datetime
     If no date is provided, uses current date.
     
     Week definition: Sunday → Saturday
+    
+    Args:
+        date: Optional datetime (timezone-aware or naive). If None, uses current time.
+              If timezone-aware, converts to naive to match client time storage.
+    
+    Returns:
+        Tuple of (week_start, week_end) as naive datetimes (no timezone)
     """
     if date is None:
-        date = datetime.now(timezone.utc)
+        # Use current time (naive, no timezone) to match client time storage
+        date = datetime.now()
+    else:
+        # If timezone-aware, convert to naive to preserve the time value
+        if date.tzinfo is not None:
+            date = date.replace(tzinfo=None)
     
-    # Get the date (without time) in UTC
+    # Get the date (without time)
     date_only = date.replace(hour=0, minute=0, second=0, microsecond=0)
     
     # Find Sunday (weekday 6 in Python: Monday=0, Sunday=6)
@@ -54,6 +67,7 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
     Rule A: Weekly page cap (max 10-12 pages)
     Rule B: Per-day compression (1-2 highest importance per person per day)
     Rule C: Low-priority removal (exclude routine posts if high-importance events exist)
+    Rule D: Exclude memes/low-quality posts (importance <= threshold)
     
     Args:
         posts: List of posts with importance_score and digest_summary
@@ -68,6 +82,19 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
     if not posts:
         return []
     
+    # Get configurable thresholds
+    min_importance_threshold = settings.DIGEST_MIN_IMPORTANCE_THRESHOLD
+    posts_per_connection_per_day = settings.DIGEST_POSTS_PER_CONNECTION_PER_DAY
+    # Ensure posts_per_connection_per_day is between 1 and 2
+    posts_per_connection_per_day = max(1, min(2, posts_per_connection_per_day))
+    
+    # Rule D: Filter out memes and low-quality posts FIRST (before any other filtering)
+    # Posts with importance_score <= threshold are excluded
+    filtered_by_quality = [
+        post for post in posts
+        if post.importance_score is not None and post.importance_score > min_importance_threshold
+    ]
+    
     # Rule C: Check if week has high-importance events
     # High-importance events: weddings, family gatherings, meaningful social events
     # Low-priority: coffee, desk shots, routine selfies
@@ -76,12 +103,12 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
     
     has_high_importance_events = any(
         post.importance_score is not None and post.importance_score >= high_importance_threshold
-        for post in posts
+        for post in filtered_by_quality
     )
     
     # Rule B: Group posts by author and date
     posts_by_author_date = defaultdict(list)
-    for post in posts:
+    for post in filtered_by_quality:
         if post.importance_score is None:
             # Skip posts without importance scores (not processed yet)
             continue
@@ -91,18 +118,20 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
         key = (author_id, post_date)
         posts_by_author_date[key].append(post)
     
-    # Apply Rule B: Keep 1-2 highest importance posts per person per day
+    # Apply Rule B: Keep top 1-2 highest importance posts per person per day (configurable)
     filtered_by_day = []
     for (author_id, post_date), day_posts in posts_by_author_date.items():
-        # Sort by importance (descending)
+        # Sort by importance (descending), then by post ID (ascending) for deterministic ordering
         sorted_posts = sorted(
             day_posts,
-            key=lambda p: p.importance_score if p.importance_score is not None else 0.0,
-            reverse=True
+            key=lambda p: (
+                -(p.importance_score if p.importance_score is not None else 0.0),
+                p.id  # Use post ID as tiebreaker for deterministic sorting
+            )
         )
         
-        # Keep top 2 posts per person per day
-        filtered_by_day.extend(sorted_posts[:2])
+        # Keep top N posts per person per day (configurable, 1-2)
+        filtered_by_day.extend(sorted_posts[:posts_per_connection_per_day])
     
     # Apply Rule C: Remove low-priority posts if high-importance events exist
     if has_high_importance_events:
@@ -113,11 +142,14 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
     else:
         filtered_by_priority = filtered_by_day
     
-    # Sort by date and importance for final selection
+    # Sort by date, importance, and post ID for deterministic final selection
+    # This ensures the digest stays consistent during the week
+    # Use datetime.min (naive) for fallback since posts are stored as naive datetimes
     filtered_by_priority.sort(
         key=lambda p: (
-            p.created_at if p.created_at else datetime.min.replace(tzinfo=timezone.utc),
-            -(p.importance_score if p.importance_score is not None else 0.0)
+            p.created_at if p.created_at else datetime.min,
+            -(p.importance_score if p.importance_score is not None else 0.0),
+            p.id  # Post ID as final tiebreaker for consistency
         )
     )
     
@@ -130,11 +162,14 @@ def filter_digest_posts(posts: list[Post], max_pages: int = 12) -> list[Post]:
 @router.get("/", response_model=dict)
 def get_digest(
     tag_filter: str = Query("all", description="Filter by tag: 'all', 'friends', 'family', or tag ID"),
+    client_timestamp: Optional[str] = Query(None, description="ISO format timestamp from client system (optional)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Get the weekly digest - posts from the current week (Sunday to Saturday).
+    
+    Uses client timestamp to determine the week, so the digest reflects the user's local time.
     
     Returns:
         {
@@ -144,8 +179,35 @@ def get_digest(
             "week_end": str  # ISO format
         }
     """
-    # Get week bounds (Sunday to Saturday)
-    week_start, week_end = get_week_bounds()
+    # Parse client timestamp or use server time as fallback
+    if client_timestamp:
+        try:
+            # Parse ISO format timestamp (client sends local time without timezone)
+            if client_timestamp.endswith('Z'):
+                # UTC format - convert to naive (shouldn't happen with our frontend, but handle it)
+                client_date = datetime.fromisoformat(client_timestamp.replace('Z', '+00:00'))
+                if client_date.tzinfo:
+                    client_date = client_date.replace(tzinfo=None)
+            elif '+' in client_timestamp or (client_timestamp.count('-') > 2 and 'T' in client_timestamp):
+                # Has timezone offset - parse and convert to naive
+                client_date = datetime.fromisoformat(client_timestamp)
+                if client_date.tzinfo:
+                    client_date = client_date.replace(tzinfo=None)
+            else:
+                # Naive datetime (local time from client) - parse as-is
+                client_date = datetime.fromisoformat(client_timestamp)
+        except (ValueError, AttributeError) as e:
+            # If parsing fails, fall back to server time
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to parse client_timestamp '{client_timestamp}': {e}. Using server time.")
+            client_date = datetime.now()
+    else:
+        # No client timestamp provided, use server time
+        client_date = datetime.now()
+    
+    # Get week bounds (Sunday to Saturday) using client time
+    week_start, week_end = get_week_bounds(client_date)
     
     # Get all accepted connections
     my_connections = (
@@ -232,6 +294,9 @@ def get_digest(
             "week_end": week_end.isoformat()
         }
     
+    # Query posts from this week
+    # Since posts are stored as naive datetimes (client time) and week bounds are also naive,
+    # the comparison should work correctly
     posts = (
         db.query(Post)
         .options(joinedload(Post.author))

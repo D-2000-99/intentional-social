@@ -2853,3 +2853,94 @@ button:focus-visible,
   background: var(--color-divider);
   border-radius: 2px;
 }
+
+/* Text-Only Posts Page */
+.digest-text-only-page {
+  justify-content: flex-start;
+  padding-top: 72px;
+}
+
+.digest-text-only-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+  opacity: 0.9;
+}
+
+.digest-text-only-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 20px;
+  overflow-y: auto;
+}
+
+/* Text-Only Post Card */
+.digest-text-post-card {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.digest-text-post-card:hover {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.digest-text-post-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 16px;
+}
+
+.digest-text-post-username {
+  font-family: 'Lora', serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.digest-text-post-username:hover {
+  color: var(--olive-primary);
+}
+
+.digest-text-post-date {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.digest-text-post-content {
+  margin-top: 8px;
+}
+
+.digest-text-post-text {
+  font-family: 'Lora', serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-main);
+  opacity: 0.9;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-weight: 400;
+  margin: 0;
+}

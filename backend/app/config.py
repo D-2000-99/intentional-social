@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     
     # Moderator configuration
     MODERATOR_EMAILS: Optional[str] = None  # Comma-separated list of moderator emails
+    
+    # Digest configuration
+    DIGEST_POSTS_PER_CONNECTION_PER_DAY: int = 2  # Number of top posts per connection per day (1-2)
+    DIGEST_MIN_IMPORTANCE_THRESHOLD: float = 1.0  # Posts with importance <= this are excluded (memes/low-quality)
 
     @field_validator('SECRET_KEY')
     @classmethod

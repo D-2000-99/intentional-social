@@ -44,13 +44,16 @@ export default function DigestView({ onSwitchToNow }) {
     };
 
     const formatDayLabel = (dateString) => {
+        // Parse the date string - handle both timezone-aware and naive timestamps
+        // Since we're using client timestamps (naive), parse as local time
         const date = new Date(dateString);
         const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
         const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
         
-        const dayName = days[date.getUTCDay()];
-        const month = months[date.getUTCMonth()];
-        const day = date.getUTCDate();
+        // Use local time methods instead of UTC to match client timestamps
+        const dayName = days[date.getDay()];
+        const month = months[date.getMonth()];
+        const day = date.getDate();
         
         return `${dayName} · ${month} ${day}`;
     };
@@ -58,12 +61,17 @@ export default function DigestView({ onSwitchToNow }) {
     const formatDayShort = (dateString) => {
         const date = new Date(dateString);
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        return days[date.getUTCDay()];
+        // Use local time method instead of UTC
+        return days[date.getDay()];
     };
 
     const getDayKey = (dateString) => {
+        // Parse date and get local date string (YYYY-MM-DD format)
         const date = new Date(dateString);
-        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
 
     // Group posts by day and get unique days
@@ -163,6 +171,44 @@ export default function DigestView({ onSwitchToNow }) {
     const posts = digestData.posts;
     const uniqueDays = getUniqueDays();
 
+    // Group posts by day, then separate into image posts and text-only posts per day
+    const postsByDay = new Map();
+    
+    posts.forEach(post => {
+        const dayKey = getDayKey(post.created_at);
+        if (!postsByDay.has(dayKey)) {
+            postsByDay.set(dayKey, {
+                date: post.created_at,
+                dayLabel: formatDayLabel(post.created_at),
+                imagePosts: [],
+                textOnlyPosts: []
+            });
+        }
+        
+        const dayData = postsByDay.get(dayKey);
+        // Check photo_urls (source of truth) rather than just presigned URLs
+        if (post.photo_urls && post.photo_urls.length > 0) {
+            dayData.imagePosts.push(post);
+        } else {
+            dayData.textOnlyPosts.push(post);
+        }
+    });
+
+    // Convert to sorted array of days
+    const sortedDays = Array.from(postsByDay.values()).sort((a, b) => 
+        new Date(a.date) - new Date(b.date)
+    );
+
+    // Calculate page indices for day jump navigation
+    let currentPageIndex = 0;
+    const dayPageIndices = new Map();
+    sortedDays.forEach(day => {
+        const dayKey = getDayKey(day.date);
+        dayPageIndices.set(dayKey, currentPageIndex);
+        // Each image post is a page, plus one page for text-only posts if they exist
+        currentPageIndex += day.imagePosts.length + (day.textOnlyPosts.length > 0 ? 1 : 0);
+    });
+
     return (
         <div className="digest-container">
             {/* Filter Bar */}
@@ -196,16 +242,20 @@ export default function DigestView({ onSwitchToNow }) {
                     </button>
                     {showDayJump && (
                         <div className="digest-day-jump-menu">
-                            {uniqueDays.map((day) => (
-                                <button
-                                    key={day.date}
-                                    className="digest-day-jump-item"
-                                    onClick={() => jumpToDay(day.postIndex)}
-                                >
-                                    <span className="digest-day-jump-short">{day.shortLabel}</span>
-                                    <span className="digest-day-jump-full">{day.label}</span>
-                                </button>
-                            ))}
+                            {uniqueDays.map((day) => {
+                                const dayKey = getDayKey(day.date);
+                                const pageIndex = dayPageIndices.get(dayKey);
+                                return (
+                                    <button
+                                        key={day.date}
+                                        className="digest-day-jump-item"
+                                        onClick={() => pageIndex !== undefined && jumpToDay(pageIndex)}
+                                    >
+                                        <span className="digest-day-jump-short">{day.shortLabel}</span>
+                                        <span className="digest-day-jump-full">{day.label}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -213,55 +263,98 @@ export default function DigestView({ onSwitchToNow }) {
 
             {/* Horizontal Scroll Container */}
             <div className="digest-scroll-container" ref={scrollContainerRef}>
-                {/* Post Pages */}
-                {posts.map((post) => {
-                    const dayLabel = formatDayLabel(post.created_at);
-                    const firstPhoto = post.photo_urls_presigned?.[0] || null;
-                    const username = post.author.display_name || post.author.username;
-                    const caption = post.content || "";
+                {/* Render posts grouped by day */}
+                {sortedDays.map((day) => (
+                    <>
+                        {/* Image Posts for this day */}
+                        {day.imagePosts.map((post) => {
+                            const firstPhoto = post.photo_urls_presigned?.[0] || null;
+                            const username = post.author.display_name || post.author.username;
+                            const caption = post.content || "";
 
-                    return (
-                        <div key={post.id} className="digest-page">
-                            {/* Printed Header */}
-                            <div className="digest-header">
-                                <span className="digest-day-label">{dayLabel}</span>
-                            </div>
+                            return (
+                                <div key={post.id} className="digest-page">
+                                    {/* Printed Header */}
+                                    <div className="digest-header">
+                                        <span className="digest-day-label">{day.dayLabel}</span>
+                                    </div>
 
-                            {/* Content Card */}
-                            <div className="digest-content">
-                                {/* Username */}
-                                <div className="digest-username">
-                                    <Link 
-                                        to={`/profile/${sanitizeUrlParam(post.author.username || '')}`}
-                                        className="digest-username-text digest-username-link"
-                                    >
-                                        {sanitizeText(username)}
-                                    </Link>
+                                    {/* Content Card */}
+                                    <div className="digest-content">
+                                        {/* Username */}
+                                        <div className="digest-username">
+                                            <Link 
+                                                to={`/profile/${sanitizeUrlParam(post.author.username || '')}`}
+                                                className="digest-username-text digest-username-link"
+                                            >
+                                                {sanitizeText(username)}
+                                            </Link>
+                                        </div>
+
+                                        {/* Image */}
+                                        {firstPhoto && (
+                                            <div className="digest-image-container">
+                                                <div className="digest-image-border"></div>
+                                                <img 
+                                                    src={firstPhoto} 
+                                                    alt="Post" 
+                                                    className="digest-image"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Caption */}
+                                        {caption && (
+                                            <div className="digest-caption">
+                                                <p className="digest-caption-text">{caption}</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            );
+                        })}
 
-                                {/* Image */}
-                                {firstPhoto && (
-                                    <div className="digest-image-container">
-                                        <div className="digest-image-border"></div>
-                                        <img 
-                                            src={firstPhoto} 
-                                            alt="Post" 
-                                            className="digest-image"
-                                        />
-                                    </div>
-                                )}
+                        {/* Text-Only Posts for this day */}
+                        {day.textOnlyPosts.length > 0 && (
+                            <div key={`${day.date}-text`} className="digest-page digest-text-only-page">
+                                <div className="digest-text-only-header">
+                                    <span className="digest-day-label">{day.dayLabel}</span>
+                                </div>
+                                <div className="digest-text-only-content">
+                                    {day.textOnlyPosts.map((post) => {
+                                        const username = post.author.display_name || post.author.username;
+                                        const caption = post.content || "";
 
-                                {/* Caption */}
-                                {caption && (
-                                    <div className="digest-caption">
-                                        <p className="digest-caption-text">{caption}</p>
-                                    </div>
-                                )}
+                                        return (
+                                            <div key={post.id} className="digest-text-post-card">
+                                                <div className="digest-text-post-header">
+                                                    <Link 
+                                                        to={`/profile/${sanitizeUrlParam(post.author.username || '')}`}
+                                                        className="digest-text-post-username"
+                                                    >
+                                                        {sanitizeText(username)}
+                                                    </Link>
+                                                    <span className="digest-text-post-date">
+                                                        {new Date(post.created_at).toLocaleTimeString('en-US', { 
+                                                            hour: 'numeric', 
+                                                            minute: '2-digit',
+                                                            hour12: true 
+                                                        })}
+                                                    </span>
+                                                </div>
+                                                {caption && (
+                                                    <div className="digest-text-post-content">
+                                                        <p className="digest-text-post-text">{sanitizeText(caption)}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-
-                        </div>
-                    );
-                })}
+                        )}
+                    </>
+                ))}
 
                 {/* End Page */}
                 <div className="digest-page digest-summary-page">

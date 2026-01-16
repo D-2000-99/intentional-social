@@ -13,7 +13,7 @@ class Post(Base):
     content = Column(Text, nullable=False)
     audience_type = Column(String(20), default="all")  # 'all', 'tags', 'connections', 'private'
     photo_urls = Column(JSON, default=lambda: [])  # List of S3 keys for photos
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, nullable=False)  # Set explicitly using client time
     
     # Digest fields
     digest_summary = Column(Text, nullable=True)  # LLM-generated summary for digest view
