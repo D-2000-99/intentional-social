@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, union_all, or_, and_
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/feed", tags=["Feed"])
 
 
 @router.get("/", response_model=list[PostOut])
+@router.get("", response_model=list[PostOut])  # Accept both /feed and /feed/ to avoid redirects
 def get_feed(
     skip: int = 0,
     limit: int = 20,
