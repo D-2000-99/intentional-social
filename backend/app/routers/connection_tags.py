@@ -5,10 +5,26 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.connection import Connection
 from app.models.tag import Tag
-from app.models.connection_tag import ConnectionTag
+from app.models.user_tag import UserTag
+from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.tag import ConnectionTagCreate, ConnectionTagOut, TagOut
 
 router = APIRouter(prefix="/connections", tags=["Connection Tags"])
+
+
+def is_tag_in_use(db: Session, tag_id: int) -> bool:
+    """Check if a tag is still being used in UserTag or PostAudienceTag"""
+    # Check if tag is used in any UserTag
+    user_tag_count = db.query(UserTag).filter(UserTag.tag_id == tag_id).count()
+    if user_tag_count > 0:
+        return True
+    
+    # Check if tag is used in any PostAudienceTag
+    post_audience_tag_count = db.query(PostAudienceTag).filter(PostAudienceTag.tag_id == tag_id).count()
+    if post_audience_tag_count > 0:
+        return True
+    
+    return False
 
 
 @router.get("/{connection_id}/tags", response_model=list[TagOut])
@@ -17,7 +33,7 @@ def get_connection_tags(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all tags for a specific connection"""
+    """Get all tags for a specific connection (tags that current user has applied to the other user)"""
     # Verify connection belongs to current user
     connection = db.query(Connection).filter(Connection.id == connection_id).first()
     
@@ -28,29 +44,32 @@ def get_connection_tags(
         )
     
     # Must be part of the connection
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
     
-    # Get tags for this connection that belong to the current user
-    # IMPORTANT: Only return tags that belong to the current user
-    # Each user has their own personal tags, and tags from other users should never be visible
-    connection_tags = (
-        db.query(ConnectionTag)
-        .options(joinedload(ConnectionTag.tag))
-        .join(Tag, ConnectionTag.tag_id == Tag.id)
+    # Determine the target user (the other user in the connection)
+    target_user_id = connection.user_b_id if connection.user_a_id == current_user.id else connection.user_a_id
+    
+    # Get tags that current user (owner) has applied to the target user
+    # Only return tags that belong to the current user
+    user_tags_query = (
+        db.query(UserTag)
+        .options(joinedload(UserTag.tag))
+        .join(Tag, UserTag.tag_id == Tag.id)
         .filter(
-            ConnectionTag.connection_id == connection_id,
-            Tag.user_id == current_user.id  # CRITICAL: Only show tags owned by current user
+            UserTag.owner_user_id == current_user.id,
+            UserTag.target_user_id == target_user_id,
+            Tag.owner_user_id == current_user.id  # CRITICAL: Only show tags owned by current user
         )
         .all()
     )
     
-    # Double-check: ensure all returned tags belong to current user
-    user_tags = [ct.tag for ct in connection_tags if ct.tag and ct.tag.user_id == current_user.id]
-    return user_tags
+    # Extract tags
+    tags = [ut.tag for ut in user_tags_query if ut.tag]
+    return tags
 
 
 @router.post("/{connection_id}/tags", status_code=status.HTTP_201_CREATED)
@@ -60,7 +79,7 @@ def add_tag_to_connection(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Add a tag to a connection"""
+    """Add a tag to a connection (tag the other user with one of your tags)"""
     # Verify connection belongs to current user
     connection = db.query(Connection).filter(Connection.id == connection_id).first()
     
@@ -70,14 +89,17 @@ def add_tag_to_connection(
             detail="Connection not found",
         )
     
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
     
+    # Determine the target user (the other user in the connection)
+    target_user_id = connection.user_b_id if connection.user_a_id == current_user.id else connection.user_a_id
+    
     # Verify tag belongs to current user
-    tag = db.query(Tag).filter(Tag.id == payload.tag_id, Tag.user_id == current_user.id).first()
+    tag = db.query(Tag).filter(Tag.id == payload.tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(
@@ -87,10 +109,11 @@ def add_tag_to_connection(
     
     # Check if already tagged
     existing = (
-        db.query(ConnectionTag)
+        db.query(UserTag)
         .filter(
-            ConnectionTag.connection_id == connection_id,
-            ConnectionTag.tag_id == payload.tag_id,
+            UserTag.owner_user_id == current_user.id,
+            UserTag.target_user_id == target_user_id,
+            UserTag.tag_id == payload.tag_id,
         )
         .first()
     )
@@ -98,16 +121,17 @@ def add_tag_to_connection(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Connection already has this tag",
+            detail="User already has this tag",
         )
     
-    # Create connection tag
-    connection_tag = ConnectionTag(
-        connection_id=connection_id,
+    # Create user tag
+    user_tag = UserTag(
+        owner_user_id=current_user.id,
+        target_user_id=target_user_id,
         tag_id=payload.tag_id,
     )
     
-    db.add(connection_tag)
+    db.add(user_tag)
     db.commit()
     
     return {"detail": "Tag added to connection"}
@@ -130,14 +154,17 @@ def remove_tag_from_connection(
             detail="Connection not found",
         )
     
-    if connection.requester_id != current_user.id and connection.recipient_id != current_user.id:
+    if connection.user_a_id != current_user.id and connection.user_b_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
     
+    # Determine the target user (the other user in the connection)
+    target_user_id = connection.user_b_id if connection.user_a_id == current_user.id else connection.user_a_id
+    
     # Verify tag belongs to current user
-    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(
@@ -145,23 +172,31 @@ def remove_tag_from_connection(
             detail="Tag not found",
         )
     
-    # Find and delete connection tag
-    connection_tag = (
-        db.query(ConnectionTag)
+    # Find and delete user tag
+    user_tag = (
+        db.query(UserTag)
         .filter(
-            ConnectionTag.connection_id == connection_id,
-            ConnectionTag.tag_id == tag_id,
+            UserTag.owner_user_id == current_user.id,
+            UserTag.target_user_id == target_user_id,
+            UserTag.tag_id == tag_id,
         )
         .first()
     )
     
-    if not connection_tag:
+    if not user_tag:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tag not found on this connection",
         )
     
-    db.delete(connection_tag)
+    db.delete(user_tag)
     db.commit()
+    
+    # Check if tag is still in use (by other UserTags or PostAudienceTags)
+    # If not, automatically delete the tag
+    if not is_tag_in_use(db, tag_id):
+        db.delete(tag)
+        db.commit()
+        return {"detail": "Tag removed from connection and deleted (no longer in use)"}
     
     return {"detail": "Tag removed from connection"}

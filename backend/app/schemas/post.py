@@ -28,6 +28,8 @@ class PostOut(BaseModel):
     created_at: datetime
     author: AuthorOut  # Include author details
     audience_tags: List[TagOut] = []  # Tags used for audience filtering
+    digest_summary: Optional[str] = None  # LLM-generated summary for digest view
+    # Note: importance_score is intentionally NOT included - it's internal only
 
     class Config:
         from_attributes = True

@@ -15,19 +15,15 @@ router = APIRouter(prefix="/comments", tags=["Comments"])
 
 def are_connected(db: Session, user1_id: int, user2_id: int) -> bool:
     """Check if two users are connected (accepted connection)."""
+    # Normalize: ensure user_a_id < user_b_id
+    user_a_id = min(user1_id, user2_id)
+    user_b_id = max(user1_id, user2_id)
+    
     connection = (
         db.query(Connection)
         .filter(
-            or_(
-                and_(
-                    Connection.requester_id == user1_id,
-                    Connection.recipient_id == user2_id,
-                ),
-                and_(
-                    Connection.requester_id == user2_id,
-                    Connection.recipient_id == user1_id,
-                ),
-            ),
+            Connection.user_a_id == user_a_id,
+            Connection.user_b_id == user_b_id,
             Connection.status == ConnectionStatus.ACCEPTED,
         )
         .first()

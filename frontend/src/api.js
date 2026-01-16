@@ -95,6 +95,19 @@ export const api = {
       formData.append("audience_tag_ids", audience_tag_ids.join(","));
     }
 
+    // Append client timestamp (ISO format from client's system time)
+    // Use local time, not UTC - format as YYYY-MM-DDTHH:mm:ss.sss (no timezone)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+    const clientTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+    formData.append("client_timestamp", clientTimestamp);
+
     // Append each photo file if present
     if (photos && photos.length > 0) {
       photos.forEach((photo) => {
@@ -265,4 +278,25 @@ export const api = {
 
   reportPost: (token, postId, reason = null) =>
     api.request(`/posts/${postId}/report`, "POST", { reason }, token),
+
+  // Digest
+  getDigest: (token, tagFilter = "all") => {
+    // Send client timestamp (local time, not UTC) to determine the week
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+    const clientTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+    
+    return api.request(
+      `/digest/?tag_filter=${encodeURIComponent(tagFilter)}&client_timestamp=${encodeURIComponent(clientTimestamp)}`,
+      "GET",
+      null,
+      token
+    );
+  },
 };

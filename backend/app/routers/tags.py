@@ -4,9 +4,26 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.tag import Tag
+from app.models.user_tag import UserTag
+from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.tag import TagCreate, TagUpdate, TagOut
 
 router = APIRouter(prefix="/tags", tags=["Tags"])
+
+
+def is_tag_in_use(db: Session, tag_id: int) -> bool:
+    """Check if a tag is still being used in UserTag or PostAudienceTag"""
+    # Check if tag is used in any UserTag
+    user_tag_count = db.query(UserTag).filter(UserTag.tag_id == tag_id).count()
+    if user_tag_count > 0:
+        return True
+    
+    # Check if tag is used in any PostAudienceTag
+    post_audience_tag_count = db.query(PostAudienceTag).filter(PostAudienceTag.tag_id == tag_id).count()
+    if post_audience_tag_count > 0:
+        return True
+    
+    return False
 
 
 @router.get("", response_model=list[TagOut])
@@ -17,7 +34,7 @@ def get_user_tags(
     """Get all tags for the current user"""
     tags = (
         db.query(Tag)
-        .filter(Tag.user_id == current_user.id)
+        .filter(Tag.owner_user_id == current_user.id)
         .order_by(Tag.created_at)
         .all()
     )
@@ -34,7 +51,7 @@ def create_tag(
     # Check if tag name already exists for this user
     existing = (
         db.query(Tag)
-        .filter(Tag.user_id == current_user.id, Tag.name == payload.name)
+        .filter(Tag.owner_user_id == current_user.id, Tag.name == payload.name)
         .first()
     )
     
@@ -45,7 +62,7 @@ def create_tag(
         )
     
     new_tag = Tag(
-        user_id=current_user.id,
+        owner_user_id=current_user.id,
         name=payload.name,
         color_scheme=payload.color_scheme,
     )
@@ -65,7 +82,7 @@ def update_tag(
     current_user: User = Depends(get_current_user),
 ):
     """Update a tag"""
-    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(
@@ -78,7 +95,7 @@ def update_tag(
         existing = (
             db.query(Tag)
             .filter(
-                Tag.user_id == current_user.id,
+                Tag.owner_user_id == current_user.id,
                 Tag.name == payload.name,
                 Tag.id != tag_id,
             )
@@ -106,13 +123,20 @@ def delete_tag(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a tag"""
-    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.user_id == current_user.id).first()
+    """Delete a tag. Only allowed if tag is not in use."""
+    tag = db.query(Tag).filter(Tag.id == tag_id, Tag.owner_user_id == current_user.id).first()
     
     if not tag:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tag not found",
+        )
+    
+    # Check if tag is still in use
+    if is_tag_in_use(db, tag_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete tag: it is still being used. Remove all tag assignments first.",
         )
     
     db.delete(tag)

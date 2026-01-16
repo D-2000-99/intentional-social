@@ -22,6 +22,7 @@ async def create_post(
     audience_type: str = Form("all"),
     audience_tag_ids: Optional[str] = Form(None),  # Comma-separated string
     photos: Optional[List[UploadFile]] = File(None),
+    client_timestamp: Optional[str] = Form(None),  # ISO format timestamp from client
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -33,13 +34,52 @@ async def create_post(
     - audience_type: 'all', 'tags', 'connections', or 'private'
     - audience_tag_ids: Comma-separated tag IDs (optional, used when audience_type is 'tags')
     - photos: One or more image files (optional)
+    - client_timestamp: ISO format timestamp from client system (optional, falls back to server time)
     """
-    # Check daily post limit (3 posts per day)
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Parse client timestamp or use server time as fallback
+    if client_timestamp:
+        try:
+            # Parse ISO format timestamp (client sends local time without timezone)
+            # Handle both with and without timezone info
+            if client_timestamp.endswith('Z'):
+                # UTC format - convert to naive (shouldn't happen with our frontend, but handle it)
+                post_timestamp = datetime.fromisoformat(client_timestamp.replace('Z', '+00:00'))
+                # Convert to naive by removing timezone info (preserve the time value)
+                if post_timestamp.tzinfo:
+                    post_timestamp = post_timestamp.replace(tzinfo=None)
+            elif '+' in client_timestamp or client_timestamp.count('-') > 2:
+                # Has timezone offset - parse and convert to naive
+                post_timestamp = datetime.fromisoformat(client_timestamp)
+                if post_timestamp.tzinfo:
+                    post_timestamp = post_timestamp.replace(tzinfo=None)
+            else:
+                # Naive datetime (local time from client) - parse as-is
+                post_timestamp = datetime.fromisoformat(client_timestamp)
+        except (ValueError, AttributeError) as e:
+            # If parsing fails, fall back to server time
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to parse client_timestamp '{client_timestamp}': {e}. Using server time.")
+            post_timestamp = datetime.now()
+    else:
+        # No client timestamp provided, use server time
+        post_timestamp = datetime.now()
+    
+    # Check daily post limit (3 posts per day) using client time
+    # Use the client's local date (their current day)
+    # Ensure post_timestamp is naive (no timezone) to preserve client's local time
+    if post_timestamp.tzinfo is not None:
+        post_timestamp = post_timestamp.replace(tzinfo=None)
+    
+    # Extract date part for comparison (works with both naive and timezone-aware stored timestamps)
+    client_date = post_timestamp.date()
+    
+    # Query posts from today using date comparison
+    # This works regardless of whether stored timestamps are timezone-aware or naive
     posts_today_count = (
         db.query(func.count(Post.id))
         .filter(Post.author_id == current_user.id)
-        .filter(Post.created_at >= today_start)
+        .filter(func.date(Post.created_at) == client_date)
         .scalar()
     )
     
@@ -72,11 +112,17 @@ async def create_post(
             )
         
         # Create post first to get post_id for S3 path
+        # Ensure timestamp is naive (no timezone) to preserve client's local time
+        post_created_at = post_timestamp
+        if post_created_at.tzinfo is not None:
+            post_created_at = post_created_at.replace(tzinfo=None)
+        
         new_post = Post(
             author_id=current_user.id,
             content=content,
             audience_type=audience_type,
-            photo_urls=[]  # Will be updated after uploads
+            photo_urls=[],  # Will be updated after uploads
+            created_at=post_created_at
         )
         db.add(new_post)
         db.commit()
@@ -139,11 +185,17 @@ async def create_post(
         db.refresh(new_post)
     else:
         # No photos, create post normally
+        # Ensure timestamp is naive (no timezone) to preserve client's local time
+        post_created_at = post_timestamp
+        if post_created_at.tzinfo is not None:
+            post_created_at = post_created_at.replace(tzinfo=None)
+        
         new_post = Post(
             author_id=current_user.id,
             content=content,
             audience_type=audience_type,
-            photo_urls=[]
+            photo_urls=[],
+            created_at=post_created_at
         )
         db.add(new_post)
         db.commit()
