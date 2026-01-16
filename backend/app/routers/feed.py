@@ -145,6 +145,43 @@ def get_feed(
             if user_tags:
                 filtered_posts.append(post)
 
+    # If tag filtering is requested, further filter posts by their audience tags
+    # Only show posts that have at least one of the selected tags in their audience
+    if tag_ids and filtered_posts:
+        tag_id_list = [int(tid) for tid in tag_ids.split(",")]
+        
+        # Get all post IDs from filtered posts
+        post_ids = [post.id for post in filtered_posts]
+        
+        # Get all PostAudienceTag entries for these posts in one query
+        post_audience_tags_map = {}
+        if post_ids:
+            audience_tags = (
+                db.query(PostAudienceTag.post_id, PostAudienceTag.tag_id)
+                .filter(PostAudienceTag.post_id.in_(post_ids))
+                .all()
+            )
+            for post_id, tag_id in audience_tags:
+                if post_id not in post_audience_tags_map:
+                    post_audience_tags_map[post_id] = []
+                post_audience_tags_map[post_id].append(tag_id)
+        
+        # Filter posts: only include if they have at least one of the selected tags
+        # OR if they have audience_type='all' (show in all filters)
+        posts_with_matching_tags = []
+        for post in filtered_posts:
+            if post.audience_type == 'all':
+                # Posts with 'all' audience appear in all filters
+                posts_with_matching_tags.append(post)
+            elif post.audience_type == 'tags':
+                # Check if post has any of the selected tags in its audience
+                post_tag_ids = post_audience_tags_map.get(post.id, [])
+                if any(tag_id in post_tag_ids for tag_id in tag_id_list):
+                    posts_with_matching_tags.append(post)
+            # 'private' posts are already filtered out above
+        
+        filtered_posts = posts_with_matching_tags
+
     # Convert posts to PostOut with pre-signed URLs for photos
     result = []
     for post in filtered_posts:

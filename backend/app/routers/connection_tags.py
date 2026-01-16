@@ -6,9 +6,25 @@ from app.models.user import User
 from app.models.connection import Connection
 from app.models.tag import Tag
 from app.models.user_tag import UserTag
+from app.models.post_audience_tag import PostAudienceTag
 from app.schemas.tag import ConnectionTagCreate, ConnectionTagOut, TagOut
 
 router = APIRouter(prefix="/connections", tags=["Connection Tags"])
+
+
+def is_tag_in_use(db: Session, tag_id: int) -> bool:
+    """Check if a tag is still being used in UserTag or PostAudienceTag"""
+    # Check if tag is used in any UserTag
+    user_tag_count = db.query(UserTag).filter(UserTag.tag_id == tag_id).count()
+    if user_tag_count > 0:
+        return True
+    
+    # Check if tag is used in any PostAudienceTag
+    post_audience_tag_count = db.query(PostAudienceTag).filter(PostAudienceTag.tag_id == tag_id).count()
+    if post_audience_tag_count > 0:
+        return True
+    
+    return False
 
 
 @router.get("/{connection_id}/tags", response_model=list[TagOut])
@@ -175,5 +191,12 @@ def remove_tag_from_connection(
     
     db.delete(user_tag)
     db.commit()
+    
+    # Check if tag is still in use (by other UserTags or PostAudienceTags)
+    # If not, automatically delete the tag
+    if not is_tag_in_use(db, tag_id):
+        db.delete(tag)
+        db.commit()
+        return {"detail": "Tag removed from connection and deleted (no longer in use)"}
     
     return {"detail": "Tag removed from connection"}
