@@ -69,12 +69,13 @@ def get_feed(
         tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
         
         # Filter connected_user_ids to only those with the selected tags
+        # Keep own user ID so we can still see own posts when filtering
         filtered_user_ids = [
             user_id for user_id in connected_user_ids
-            if user_id in tagged_user_id_set
+            if user_id in tagged_user_id_set or user_id == current_user.id
         ]
         
-        # When tag filtering is active, exclude own posts - only show posts from tagged connections
+        # Update connected_user_ids to filtered list (includes own posts)
         connected_user_ids = filtered_user_ids
     
     # Get posts from connected users + self, chronologically

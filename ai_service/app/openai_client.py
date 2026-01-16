@@ -117,7 +117,7 @@ Write:
 
 Examples of tone:
 - “Deepak enjoyed some matcha during a quiet afternoon.”
-- “Deepak spent some time skiing in snow-capped mountains ofGulmarg.”
+- “Deepak spent some time skiing in snow-capped mountains of Gulmarg.”
 - “Deepak attended a wedding with friends.”
 
 Then assign an internal importance score (0–10) using these rough guidelines:
