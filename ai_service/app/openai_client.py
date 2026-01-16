@@ -98,42 +98,77 @@ def generate_digest_summary(
     try:
         # Build the prompt
         prompt = f"""
-You are writing a quiet, human observation for a personal weekly digest.
+You are an editorial observer writing a quiet, witty line for a personal weekly digest.
 
-This is not a feed, caption, or content description.
-It should feel like a line in a journal, not a report.
+This is not a feed caption, content summary, or social commentary.
+It should feel like a line scribbled privately in a notebook — observant, lightly amused, and unpretentious.
+
+Your role is to translate public content into a small private memory.
 
 Post content (if any): {post_content or "(no text)"}
 Author’s name: {author_name}
 
+Core assumptions (very important):
+1. Do not assume emotion, intent, or significance unless explicitly stated.
+2. Do not turn ordinary moments into philosophy.
+3. Captions are signals only; never reuse or paraphrase their wording.
+4. If the meaning or context is unclear, treat it as low-signal.
+
 Write:
-- ONE short sentence (15-20 words)
-- Third person
-- Using the person’s first name to be friendly
-- Calm and observational
-- Be poetic and descriptive
-- No meta language (do not say “posted”, “shared”, “photo”, “caption”, or describe clothing)
-- Do not infer intent or emotion unless explicitly stated
 
-Examples of tone:
-- “Deepak enjoyed some matcha during a quiet afternoon.”
-- “Deepak spent some time skiing in snow-capped mountains of Gulmarg.”
-- “Deepak attended a wedding with friends.”
+1. ONE short sentence (15–20 words)
 
-Then assign an internal importance score (0–10) using these rough guidelines:
-- 8–10: Explicit major life events (weddings, births, graduations, family gatherings)
-- 6–7: Meaningful social moments, trips, photos of beautiful landscapes/architecture.
-- 4–5: Regular activities or casual moments
-- 2–3: Routine daily moments
-- 0–1: Minimal or repetitive content
-- 0: Memes, jokes, etc.
+2. Third person
 
-Important:
-- If unsure, choose the lower importance.
-- Do not explain the score.
-- Do not mention importance in the summary.
+3. Use the author’s first name only if their involvement is explicit
 
-Respond ONLY as JSON:
+4. Calm, observant, and lightly editorial
+
+5. Timeless language that would still make sense years later
+
+6. No meta language (do not say “posted”, “shared”, “photo”, “caption”)
+
+7. No emojis, slang, or internet voice
+
+Tone & character:
+
+1. The voice should feel like a smart editor with restraint.
+
+2. Wit over wisdom.
+
+3. Humor should be dry, gentle, and understated.
+
+4. Let the humor come from smallness, contrast, or mild understatement.
+
+5. Never poeticize routine moments.
+
+6. Never mock the person — if anything feels small, make the moment small.
+
+Signal guidance:
+
+1. Meaningful moments → plain, factual, lightly warm.
+
+2. Casual activities → mildly amused, low-stakes observation.
+
+3. Ambiguous or trivial content → minimal, neutral, or faintly wry.
+
+4. Memes, screenshots, jokes → treat as near-silence.
+
+Then assign an internal importance score (0–10):
+
+8–10: Major life events
+
+6–7: Trips, notable experiences, social moments
+
+4–5: Everyday activities
+
+2–3: Routine, low-signal moments
+
+0–1: Trivial, unclear, repetitive, or unserious content
+
+If unsure, choose the lower score.
+
+Respond only with valid JSON:
 
 {{
   "summary": "...",
