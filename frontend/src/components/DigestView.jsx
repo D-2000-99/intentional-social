@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { sanitizeText, sanitizeUrlParam } from "../utils/security";
 
 export default function DigestView({ onSwitchToNow }) {
     const [digestData, setDigestData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedTagId, setSelectedTagId] = useState(null);
     const [tags, setTags] = useState([]);
+    const [showDayJump, setShowDayJump] = useState(false);
     const scrollContainerRef = useRef(null);
     const { token } = useAuth();
 
@@ -52,6 +55,68 @@ export default function DigestView({ onSwitchToNow }) {
         return `${dayName} · ${month} ${day}`;
     };
 
+    const formatDayShort = (dateString) => {
+        const date = new Date(dateString);
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        return days[date.getUTCDay()];
+    };
+
+    const getDayKey = (dateString) => {
+        const date = new Date(dateString);
+        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    };
+
+    // Group posts by day and get unique days
+    const getUniqueDays = () => {
+        if (!digestData?.posts) return [];
+        const daySet = new Set();
+        const dayMap = new Map();
+        
+        digestData.posts.forEach((post, index) => {
+            const dayKey = getDayKey(post.created_at);
+            if (!daySet.has(dayKey)) {
+                daySet.add(dayKey);
+                dayMap.set(dayKey, {
+                    date: post.created_at,
+                    label: formatDayLabel(post.created_at),
+                    shortLabel: formatDayShort(post.created_at),
+                    postIndex: index
+                });
+            }
+        });
+        
+        return Array.from(dayMap.values());
+    };
+
+    const jumpToDay = (postIndex) => {
+        if (!scrollContainerRef.current) return;
+        
+        // Get all post page elements (excluding the end page)
+        const postPages = Array.from(scrollContainerRef.current.children).filter(
+            (child) => !child.classList.contains('digest-summary-page')
+        );
+        
+        const targetPost = postPages[postIndex];
+        if (targetPost) {
+            targetPost.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+            setShowDayJump(false);
+        }
+    };
+
+    // Close day jump menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showDayJump && !event.target.closest('.digest-day-jump-container')) {
+                setShowDayJump(false);
+            }
+        };
+        
+        if (showDayJump) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [showDayJump]);
+
     if (loading) {
         return (
             <div className="digest-container">
@@ -96,7 +161,7 @@ export default function DigestView({ onSwitchToNow }) {
     }
 
     const posts = digestData.posts;
-    const weeklySummary = digestData.weekly_summary;
+    const uniqueDays = getUniqueDays();
 
     return (
         <div className="digest-container">
@@ -119,13 +184,41 @@ export default function DigestView({ onSwitchToNow }) {
                 ))}
             </div>
 
+            {/* Day Jump Button */}
+            {uniqueDays.length > 1 && (
+                <div className="digest-day-jump-container">
+                    <button
+                        className="digest-day-jump-button"
+                        onClick={() => setShowDayJump(!showDayJump)}
+                        title="Jump to day"
+                    >
+                        <span>📅</span>
+                    </button>
+                    {showDayJump && (
+                        <div className="digest-day-jump-menu">
+                            {uniqueDays.map((day) => (
+                                <button
+                                    key={day.date}
+                                    className="digest-day-jump-item"
+                                    onClick={() => jumpToDay(day.postIndex)}
+                                >
+                                    <span className="digest-day-jump-short">{day.shortLabel}</span>
+                                    <span className="digest-day-jump-full">{day.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Horizontal Scroll Container */}
             <div className="digest-scroll-container" ref={scrollContainerRef}>
                 {/* Post Pages */}
                 {posts.map((post) => {
                     const dayLabel = formatDayLabel(post.created_at);
                     const firstPhoto = post.photo_urls_presigned?.[0] || null;
-                    const summary = post.digest_summary || `${post.author.display_name || post.author.username} shared a moment.`;
+                    const username = post.author.display_name || post.author.username;
+                    const caption = post.content || "";
 
                     return (
                         <div key={post.id} className="digest-page">
@@ -136,6 +229,16 @@ export default function DigestView({ onSwitchToNow }) {
 
                             {/* Content Card */}
                             <div className="digest-content">
+                                {/* Username */}
+                                <div className="digest-username">
+                                    <Link 
+                                        to={`/profile/${sanitizeUrlParam(post.author.username || '')}`}
+                                        className="digest-username-text digest-username-link"
+                                    >
+                                        {sanitizeText(username)}
+                                    </Link>
+                                </div>
+
                                 {/* Image */}
                                 {firstPhoto && (
                                     <div className="digest-image-container">
@@ -148,57 +251,30 @@ export default function DigestView({ onSwitchToNow }) {
                                     </div>
                                 )}
 
-                                {/* LLM Observation */}
-                                <div className="digest-summary">
-                                    <p className="digest-summary-text">{summary}</p>
-                                    <div className="digest-summary-divider"></div>
-                                </div>
+                                {/* Caption */}
+                                {caption && (
+                                    <div className="digest-caption">
+                                        <p className="digest-caption-text">{caption}</p>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Pagination Hint */}
-                            <div className="digest-footer">
-                                <span className="digest-mode-hint">Digest Mode</span>
-                            </div>
                         </div>
                     );
                 })}
 
-                {/* Summary Page (Last Page) */}
-                {weeklySummary && (
-                    <div className="digest-page digest-summary-page">
-                        <div className="digest-summary-content">
-                            <h2 className="digest-summary-title">Weekly Reflection</h2>
-                            
-                            <p className="digest-summary-body">{weeklySummary}</p>
-
-                            <div className="digest-summary-divider-full"></div>
-
-                            <p className="digest-summary-end">That's all for this week.</p>
-                            
-                            <button 
-                                onClick={onSwitchToNow}
-                                className="digest-return-button"
-                            >
-                                Return to Home
-                            </button>
-                        </div>
+                {/* End Page */}
+                <div className="digest-page digest-summary-page">
+                    <div className="digest-summary-content">
+                        <p className="digest-summary-end">That's all for this week.</p>
+                        <button 
+                            onClick={onSwitchToNow}
+                            className="digest-return-button"
+                        >
+                            Return to Home
+                        </button>
                     </div>
-                )}
-
-                {/* End message if no weekly summary */}
-                {!weeklySummary && (
-                    <div className="digest-page digest-summary-page">
-                        <div className="digest-summary-content">
-                            <p className="digest-summary-end">That's all for this week.</p>
-                            <button 
-                                onClick={onSwitchToNow}
-                                className="digest-return-button"
-                            >
-                                Return to Home
-                            </button>
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -12,7 +12,26 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [commentContent, setCommentContent] = useState("");
     const [submittingComment, setSubmittingComment] = useState(false);
     const [reporting, setReporting] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
     const { token } = useAuth();
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setMenuOpen(false);
+            }
+        };
+
+        if (menuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [menuOpen]);
 
     const handleToggleComments = async () => {
         if (!commentsExpanded && comments.length === 0) {
@@ -80,7 +99,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             e.target.closest('a') || 
             e.target.closest('button') ||
             e.target.closest('.comments-section') ||
-            e.target.closest('.comment-form')) {
+            e.target.closest('.comment-form') ||
+            e.target.closest('.kebab-menu-container')) {
             return;
         }
         handleToggleComments();
@@ -105,30 +125,50 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                     <span className="post-date">
                         {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
-                    {/* Report button - only show if not own post */}
-                    {post.author_id !== currentUser?.id && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleReportPost(post.id);
-                            }}
-                            className="report-post-button"
-                            title="Report post"
-                            aria-label="Report post"
-                            disabled={reporting}
-                        >
-                            {reporting ? "..." : "🚩"}
-                        </button>
-                    )}
-                    {showDeleteButton && onPostDeleted && (
-                        <button
-                            onClick={() => onPostDeleted(post.id)}
-                            className="delete-post-button"
-                            title="Delete post"
-                            aria-label="Delete post"
-                        >
-                            🗑️
-                        </button>
+                    {/* 3 dots menu - show if there are actions available */}
+                    {(post.author_id !== currentUser?.id || (showDeleteButton && onPostDeleted)) && (
+                        <div className="kebab-menu-container" ref={menuRef}>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMenuOpen(!menuOpen);
+                                }}
+                                className="kebab-menu-button"
+                                title="More options"
+                                aria-label="More options"
+                            >
+                                ⋮
+                            </button>
+                            {menuOpen && (
+                                <div className="kebab-menu-popover">
+                                    {post.author_id !== currentUser?.id && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMenuOpen(false);
+                                                handleReportPost(post.id);
+                                            }}
+                                            className="kebab-menu-item kebab-menu-item-danger"
+                                            disabled={reporting}
+                                        >
+                                            {reporting ? "Reporting..." : "Report post"}
+                                        </button>
+                                    )}
+                                    {showDeleteButton && onPostDeleted && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMenuOpen(false);
+                                                onPostDeleted(post.id);
+                                            }}
+                                            className="kebab-menu-item kebab-menu-item-danger"
+                                        >
+                                            Delete post
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
