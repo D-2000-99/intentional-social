@@ -14,44 +14,63 @@ s3_client = None
 
 
 def get_s3_client():
-    """Lazy initialization of S3 client.
+    """Lazy initialization of S3-compatible client (R2 or S3).
     
     Raises:
-        ValueError: If AWS credentials or S3 bucket name are not configured.
+        ValueError: If storage credentials or bucket name are not configured.
     """
     global s3_client
     if s3_client is None:
-        if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+        # Use R2 configuration (with fallback to legacy AWS_* variables for backward compatibility)
+        access_key = settings.R2_ACCESS_KEY_ID or settings.AWS_ACCESS_KEY_ID
+        secret_key = settings.R2_SECRET_ACCESS_KEY or settings.AWS_SECRET_ACCESS_KEY
+        bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
+        endpoint_url = settings.R2_ENDPOINT_URL
+        
+        if not access_key or not secret_key:
             raise ValueError(
-                "AWS credentials not configured. "
-                "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."
+                "Storage credentials not configured. "
+                "Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY (or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) environment variables."
             )
         
-        if not settings.S3_BUCKET_NAME:
+        if not bucket_name:
             raise ValueError(
-                "S3_BUCKET_NAME not configured. "
-                "Set S3_BUCKET_NAME environment variable."
+                "Storage bucket name not configured. "
+                "Set R2_BUCKET_NAME (or S3_BUCKET_NAME) environment variable."
             )
         
-        # Use the configured region - must match the bucket's region
-        # Ensure we use signature version 4 for pre-signed URLs
-        # Use virtual-hosted-style addressing to match AWS CLI behavior
-        # This ensures pre-signed URLs use the regional endpoint format
-        s3_config = Config(
-            signature_version='s3v4',
-            region_name=settings.AWS_REGION,
-            s3={
-                'addressing_style': 'virtual'  # Forces bucket.s3.region.amazonaws.com format
-            }
-        )
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION,
-            config=s3_config
-        )
-        logger.info(f"Initialized S3 client for bucket '{settings.S3_BUCKET_NAME}' in region '{settings.AWS_REGION}'")
+        # Configure for R2 if endpoint_url is provided, otherwise use S3
+        if endpoint_url:
+            # R2 configuration
+            s3_config = Config(
+                signature_version='s3v4',
+            )
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                endpoint_url=endpoint_url,
+                region_name='auto',  # Required for R2 - must be 'auto'
+                config=s3_config
+            )
+            logger.info(f"Initialized R2 client for bucket '{bucket_name}' at endpoint '{endpoint_url}'")
+        else:
+            # Legacy S3 configuration
+            s3_config = Config(
+                signature_version='s3v4',
+                region_name=settings.AWS_REGION,
+                s3={
+                    'addressing_style': 'virtual'  # Forces bucket.s3.region.amazonaws.com format
+                }
+            )
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=settings.AWS_REGION,
+                config=s3_config
+            )
+            logger.info(f"Initialized S3 client for bucket '{bucket_name}' in region '{settings.AWS_REGION}'")
     return s3_client
 
 
@@ -119,7 +138,7 @@ def generate_presigned_urls(s3_keys: List[str], expiration: Optional[int] = None
 
 def delete_photo_from_s3(s3_key: str) -> bool:
     """
-    Delete a photo from S3.
+    Delete a photo from S3/R2 storage.
     
     Args:
         s3_key: S3 key (path) of the object to delete
@@ -129,15 +148,22 @@ def delete_photo_from_s3(s3_key: str) -> bool:
     """
     client = get_s3_client()
     
+    # Use R2 bucket name if available, otherwise fall back to S3 bucket name
+    bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
+    
+    if not bucket_name:
+        logger.error("No bucket name configured for deletion")
+        return False
+    
     try:
         client.delete_object(
-            Bucket=settings.S3_BUCKET_NAME,
+            Bucket=bucket_name,
             Key=s3_key
         )
-        logger.info(f"Successfully deleted photo from S3: {s3_key}")
+        logger.info(f"Successfully deleted photo from storage: {s3_key}")
         return True
         
     except ClientError as e:
-        logger.error(f"Error deleting from S3: {str(e)}")
+        logger.error(f"Error deleting from storage: {str(e)}")
         return False
 

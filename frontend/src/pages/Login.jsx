@@ -55,7 +55,13 @@ export default function Login() {
             }
         } catch (err) {
             console.error("OAuth callback error:", err);
-            setError(err.message || "Authentication failed. Please try again.");
+            // Check if this is a registration request pending error
+            if (err.response?.status === 403 && err.response?.data?.detail?.includes("registration request")) {
+                // Show friendly message about pending approval
+                setError("Your registration request has been submitted and is pending admin approval. You will be able to sign in once your request is approved.");
+            } else {
+                setError(err.message || "Authentication failed. Please try again.");
+            }
             setLoading(false);
             setProcessingCallback(false);
             hasProcessedCallback.current = false;

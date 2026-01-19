@@ -17,8 +17,8 @@ class Connection(Base):
     __tablename__ = "connections"
 
     id = Column(Integer, primary_key=True, index=True)
-    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_a_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_b_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(
         SQLEnum(ConnectionStatus, native_enum=True, values_callable=lambda x: [e.value for e in x]),
         default=ConnectionStatus.PENDING,
@@ -28,14 +28,14 @@ class Connection(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
-    requester = relationship("User", foreign_keys=[requester_id], backref="sent_requests")
-    recipient = relationship("User", foreign_keys=[recipient_id], backref="received_requests")
+    user_a = relationship("User", foreign_keys=[user_a_id], backref="connections_as_a")
+    user_b = relationship("User", foreign_keys=[user_b_id], backref="connections_as_b")
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('requester_id', 'recipient_id', name='unique_connection'),
-        Index('idx_requester', 'requester_id'),
-        Index('idx_recipient', 'recipient_id'),
+        UniqueConstraint('user_a_id', 'user_b_id', name='unique_connection'),
+        Index('idx_user_a', 'user_a_id'),
+        Index('idx_user_b', 'user_b_id'),
         Index('idx_status', 'status'),
     )
 

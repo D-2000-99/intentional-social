@@ -22,6 +22,8 @@ from app.core.oauth import (
 from app.core.s3 import validate_image, upload_avatar_to_s3, generate_presigned_url, delete_photo_from_s3
 from app.config import settings
 from app.models.user import User
+# MVP TEMPORARY: Registration request model - remove when moving beyond MVP
+from app.models.registration_request import RegistrationRequest, RegistrationStatus
 from app.schemas.user import UserOut, UserCreate, UserBioUpdate
 from app.schemas.auth import Token, GoogleOAuthCallbackRequest, GoogleOAuthCallbackResponse, UsernameSelectionRequest
 
@@ -160,7 +162,10 @@ async def google_oauth_callback(
             db.commit()
             db.refresh(user)
         else:
-            # New user - check if email already exists (shouldn't happen, but safety check)
+            # MVP TEMPORARY: New user registration flow - create registration request instead of user
+            # TODO: Remove this when moving beyond MVP and create users directly
+            
+            # Check if email already exists (shouldn't happen, but safety check)
             existing_by_email = db.query(User).filter(User.email == email).first()
             if existing_by_email:
                 raise HTTPException(
@@ -168,20 +173,54 @@ async def google_oauth_callback(
                     detail="Email already registered with different account"
                 )
             
-            # Create user without username - user must set it via username selection endpoint
-            user = User(
+            # Check if there's already a pending registration request
+            existing_request = db.query(RegistrationRequest).filter(
+                RegistrationRequest.google_id == google_id,
+                RegistrationRequest.status == RegistrationStatus.PENDING
+            ).first()
+            
+            if existing_request:
+                # Registration request already exists and is pending
+                logger.info(f"Registration request already exists for {email}, returning waitlist response")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your registration request is pending approval. Please wait for admin approval."
+                )
+            
+            # Check if there's an approved request (user should exist, but handle edge case)
+            approved_request = db.query(RegistrationRequest).filter(
+                RegistrationRequest.google_id == google_id,
+                RegistrationRequest.status == RegistrationStatus.APPROVED
+            ).first()
+            
+            if approved_request:
+                # Request was approved but user doesn't exist - this shouldn't happen
+                # but handle it gracefully
+                logger.warning(f"Approved registration request exists for {email} but user not found")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Your registration was approved but account creation failed. Please contact support."
+                )
+            
+            # Create registration request
+            reg_request = RegistrationRequest(
                 email=email,
-                username=None,  # User must set username during registration
                 google_id=google_id,
-                auth_provider="google",
                 full_name=full_name,
                 picture_url=picture_url,
+                status=RegistrationStatus.PENDING,
             )
-            db.add(user)
+            db.add(reg_request)
             db.commit()
-            db.refresh(user)
+            db.refresh(reg_request)
             
-            logger.info(f"New Google OAuth user created without username: {user.email}")
+            logger.info(f"Registration request created for {email} (request ID: {reg_request.id})")
+            
+            # Return error indicating they need to wait for approval
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your registration request has been submitted and is pending admin approval. You will be notified once approved."
+            )
         
         # Generate our JWT token
         token = create_access_token(subject=user.id)
@@ -193,6 +232,7 @@ async def google_oauth_callback(
             "access_token": token,
             "token_type": "bearer",
             "needs_username": needs_username,
+            "needs_waitlist": False,  # Approved users don't need waitlist
             "user": UserOut.model_validate(user),
         }
         

@@ -118,5 +118,23 @@ export const api = {
 
   deletePost: (token, postId) =>
     api.request(`/moderation/posts/${postId}`, "DELETE", null, token),
+
+  // MVP TEMPORARY: Registration Request Management - Remove when moving beyond MVP
+  getRegistrationRequests: (token, skip = 0, limit = 50, statusFilter = null) => {
+    const params = new URLSearchParams({
+      skip: skip.toString(),
+      limit: limit.toString(),
+    });
+    if (statusFilter) {
+      params.append("status_filter", statusFilter);
+    }
+    return api.request(`/moderation/registration-requests?${params}`, "GET", null, token);
+  },
+
+  approveRegistrationRequest: (token, requestId) =>
+    api.request(`/moderation/registration-requests/${requestId}/approve`, "POST", null, token),
+
+  denyRegistrationRequest: (token, requestId) =>
+    api.request(`/moderation/registration-requests/${requestId}/deny`, "POST", null, token),
 };
 

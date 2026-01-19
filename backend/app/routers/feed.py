@@ -1,10 +1,12 @@
 import logging
+import time
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, union_all, or_, and_
 
 from app.core.deps import get_db, get_current_user
 from app.core.s3 import generate_presigned_urls
+from app.core.metrics import feed_requests_total, feed_latency_seconds
 from app.models.user import User
 from app.models.post import Post
 from app.models.connection import Connection, ConnectionStatus
@@ -12,8 +14,13 @@ from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
 from app.models.tag import Tag
 from app.schemas.post import PostOut
+from app.services.connection_service import ConnectionService
+from app.services.post_service import PostService
+from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/feed", tags=["Feed"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=list[PostOut])
@@ -29,201 +36,137 @@ def get_feed(
     Get chronological feed of posts from mutual connections.
     Optionally filter by tags.
     """
+    # Track metrics
+    feed_requests_total.inc()
+    start_time = time.time()
     
-    print(f"Raw tag_ids param: {tag_ids} ({type(tag_ids)})")
+    try:
+        print(f"Raw tag_ids param: {tag_ids} ({type(tag_ids)})")
 
-    # Get all accepted connections where I'm either user_a or user_b
-    my_connections = (
-        db.query(Connection)
-        .filter(
-            or_(
-                Connection.user_a_id == current_user.id,
-                Connection.user_b_id == current_user.id,
-            ),
-            Connection.status == ConnectionStatus.ACCEPTED,
+        # Use ConnectionService to get connected user IDs (optimized with SQL CASE)
+        connected_user_ids = ConnectionService.get_connected_user_ids(
+            current_user, db, include_self=True
         )
-        .all()
-    )
-    
-    # Extract the IDs of connected users
-    connected_user_ids = []
-    for conn in my_connections:
-        if conn.user_a_id == current_user.id:
-            connected_user_ids.append(conn.user_b_id)
-        else:
-            connected_user_ids.append(conn.user_a_id)
-    
-    # Add own user ID to see own posts in feed
-    connected_user_ids.append(current_user.id)
-    
-    # If tag filtering is requested
-    if tag_ids:
-        tag_id_list = [int(tid) for tid in tag_ids.split(",")]
         
-        # Get users that have any of these tags (where current user is the owner)
-        tagged_user_ids = (
-            db.query(UserTag.target_user_id)
-            .filter(
-                UserTag.owner_user_id == current_user.id,
-                UserTag.tag_id.in_(tag_id_list)
+        # If tag filtering is requested
+        if tag_ids:
+            tag_id_list = [int(tid) for tid in tag_ids.split(",")]
+            
+            # Get users that have any of these tags (where current user is the owner)
+            tagged_user_ids = (
+                db.query(UserTag.target_user_id)
+                .filter(
+                    UserTag.owner_user_id == current_user.id,
+                    UserTag.tag_id.in_(tag_id_list)
+                )
+                .distinct()
+                .all()
             )
-            .distinct()
+            tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
+            
+            # Filter connected_user_ids to only those with the selected tags
+            # Keep own user ID so we can still see own posts when filtering
+            filtered_user_ids = [
+                user_id for user_id in connected_user_ids
+                if user_id in tagged_user_id_set or user_id == current_user.id
+            ]
+            
+            # Update connected_user_ids to filtered list (includes own posts)
+            connected_user_ids = filtered_user_ids
+        
+        # Get posts from connected users + self, chronologically
+        # Use joinedload to eager load the author relationship
+        # Handle case where list might be empty (though it always has current_user.id)
+        if not connected_user_ids:
+            return []
+        
+        posts = (
+            db.query(Post)
+            .options(joinedload(Post.author))  # Eager load author
+            .filter(Post.author_id.in_(connected_user_ids))
+            .order_by(Post.created_at.desc())
+            .offset(skip)
+            .limit(limit)
             .all()
         )
-        tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
         
-        # Filter connected_user_ids to only those with the selected tags
-        # Keep own user ID so we can still see own posts when filtering
-        filtered_user_ids = [
-            user_id for user_id in connected_user_ids
-            if user_id in tagged_user_id_set or user_id == current_user.id
-        ]
-        
-        # Update connected_user_ids to filtered list (includes own posts)
-        connected_user_ids = filtered_user_ids
-    
-    # Get posts from connected users + self, chronologically
-    # Use joinedload to eager load the author relationship
-    # Handle case where list might be empty (though it always has current_user.id)
-    if not connected_user_ids:
-        return []
-    
-    posts = (
-        db.query(Post)
-        .options(joinedload(Post.author))  # Eager load author
-        .filter(Post.author_id.in_(connected_user_ids))
-        .order_by(Post.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    
-    # Filter posts based on audience settings
-    filtered_posts = []
-    for post in posts:
-        # Always show own posts
-        if post.author_id == current_user.id:
-            filtered_posts.append(post)
-            continue
+        # Use PostService to filter posts by audience (eliminates code duplication)
+        filtered_posts = PostService.filter_posts_by_audience(posts, current_user, db)
+
+        # If tag filtering is requested, further filter posts by their audience tags
+        # Only show posts that have at least one of the selected tags in their audience
+        if tag_ids and filtered_posts:
+            tag_id_list = [int(tid) for tid in tag_ids.split(",")]
             
-        # Show posts with audience_type = 'all'
-        if post.audience_type == 'all':
-            filtered_posts.append(post)
-            continue
-        
-        # Skip private posts from others
-        if post.audience_type == 'private':
-            continue
-        
-        # For tag-based audience, check if current user has the required tags
-        if post.audience_type == 'tags':
-            # Get the post's audience tags
-            post_audience_tags = (
-                db.query(PostAudienceTag.tag_id)
-                .filter(PostAudienceTag.post_id == post.id)
-                .all()
-            )
-            post_tag_ids = [t[0] for t in post_audience_tags]
+            # Get all post IDs from filtered posts
+            post_ids = [post.id for post in filtered_posts]
             
-            if not post_tag_ids:
-                # No tags specified, treat as 'all'
-                filtered_posts.append(post)
-                continue
-            
-            # Check if post author has tagged current_user with any of the required tags
-            # The post author is the owner, current_user is the target
-            user_tags = (
-                db.query(UserTag.tag_id)
-                .filter(
-                    UserTag.owner_user_id == post.author_id,
-                    UserTag.target_user_id == current_user.id,
-                    UserTag.tag_id.in_(post_tag_ids)
+            # Get all PostAudienceTag entries for these posts in one query
+            post_audience_tags_map = {}
+            if post_ids:
+                audience_tags = (
+                    db.query(PostAudienceTag.post_id, PostAudienceTag.tag_id)
+                    .filter(PostAudienceTag.post_id.in_(post_ids))
+                    .all()
                 )
-                .first()
-            )
+                for post_id, tag_id in audience_tags:
+                    if post_id not in post_audience_tags_map:
+                        post_audience_tags_map[post_id] = []
+                    post_audience_tags_map[post_id].append(tag_id)
             
-            if user_tags:
-                filtered_posts.append(post)
-
-    # If tag filtering is requested, further filter posts by their audience tags
-    # Only show posts that have at least one of the selected tags in their audience
-    if tag_ids and filtered_posts:
-        tag_id_list = [int(tid) for tid in tag_ids.split(",")]
-        
-        # Get all post IDs from filtered posts
-        post_ids = [post.id for post in filtered_posts]
-        
-        # Get all PostAudienceTag entries for these posts in one query
-        post_audience_tags_map = {}
-        if post_ids:
-            audience_tags = (
-                db.query(PostAudienceTag.post_id, PostAudienceTag.tag_id)
-                .filter(PostAudienceTag.post_id.in_(post_ids))
-                .all()
-            )
-            for post_id, tag_id in audience_tags:
-                if post_id not in post_audience_tags_map:
-                    post_audience_tags_map[post_id] = []
-                post_audience_tags_map[post_id].append(tag_id)
-        
-        # Filter posts: only include if they have at least one of the selected tags
-        # OR if they have audience_type='all' (show in all filters)
-        posts_with_matching_tags = []
-        for post in filtered_posts:
-            if post.audience_type == 'all':
-                # Posts with 'all' audience appear in all filters
-                posts_with_matching_tags.append(post)
-            elif post.audience_type == 'tags':
-                # Check if post has any of the selected tags in its audience
-                post_tag_ids = post_audience_tags_map.get(post.id, [])
-                if any(tag_id in post_tag_ids for tag_id in tag_id_list):
+            # Filter posts: only include if they have at least one of the selected tags
+            # OR if they have audience_type='all' (show in all filters)
+            posts_with_matching_tags = []
+            for post in filtered_posts:
+                if post.audience_type == 'all':
+                    # Posts with 'all' audience appear in all filters
                     posts_with_matching_tags.append(post)
-            # 'private' posts are already filtered out above
-        
-        filtered_posts = posts_with_matching_tags
+                elif post.audience_type == 'tags':
+                    # Check if post has any of the selected tags in its audience
+                    post_tag_ids = post_audience_tags_map.get(post.id, [])
+                    if any(tag_id in post_tag_ids for tag_id in tag_id_list):
+                        posts_with_matching_tags.append(post)
+                # 'private' posts are already filtered out above
+            
+            filtered_posts = posts_with_matching_tags
 
-    # Convert posts to PostOut with pre-signed URLs for photos
-    result = []
-    for post in filtered_posts:
-        # Generate pre-signed URLs for photos
-        photo_urls_presigned = []
-        if post.photo_urls:
-            try:
-                photo_urls_presigned = generate_presigned_urls(post.photo_urls)
-            except Exception as e:
-                # Log error for debugging
-                
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                logger.error(f"Photo URLs: {post.photo_urls}")
-                # Return empty list if pre-signed URL generation fails
-                photo_urls_presigned = []
+        # Use PostService to batch load audience tags (fixes N+1 query problem)
+        audience_tags_map = PostService.batch_load_audience_tags(filtered_posts, db)
         
-        # Get audience tags
-        audience_tags = []
-        if post.audience_type == "tags":
-            post_audience_tags = (
-                db.query(PostAudienceTag)
-                .filter(PostAudienceTag.post_id == post.id)
-                .all()
-            )
-            tag_ids = [pat.tag_id for pat in post_audience_tags]
-            if tag_ids:
-                tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
-                audience_tags = tags
-        
-        # Create PostOut with pre-signed URLs
-        post_dict = {
-            "id": post.id,
-            "author_id": post.author_id,
-            "content": post.content,
-            "audience_type": post.audience_type,
-            "photo_urls": post.photo_urls or [],
-            "photo_urls_presigned": photo_urls_presigned,
-            "created_at": post.created_at,
-            "author": post.author,
-            "audience_tags": audience_tags
-        }
-        result.append(PostOut(**post_dict))
+        # Initialize StorageService (without Redis for now)
+        storage_service = StorageService(redis_client=None)
 
-    return result
+        # Convert posts to PostOut with pre-signed URLs for photos
+        result = []
+        for post in filtered_posts:
+            # Generate pre-signed URLs for photos
+            photo_urls_presigned = []
+            if post.photo_urls:
+                try:
+                    photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
+                except Exception as e:
+                    # Log error for debugging
+                    logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
+                    logger.error(f"Photo URLs: {post.photo_urls}")
+                    # Return empty list if pre-signed URL generation fails
+                    photo_urls_presigned = []
+            
+            # Create PostOut with pre-signed URLs
+            post_dict = {
+                "id": post.id,
+                "author_id": post.author_id,
+                "content": post.content,
+                "audience_type": post.audience_type,
+                "photo_urls": post.photo_urls or [],
+                "photo_urls_presigned": photo_urls_presigned,
+                "created_at": post.created_at,
+                "author": post.author,
+                "audience_tags": audience_tags_map.get(post.id, [])
+            }
+            result.append(PostOut(**post_dict))
+
+        return result
+    finally:
+        # Record latency
+        duration = time.time() - start_time
+        feed_latency_seconds.observe(duration)

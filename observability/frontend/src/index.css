@@ -121,6 +121,54 @@ body {
   color: #1976d2;
 }
 
+/* MVP TEMPORARY: Registration Requests Styles - Remove when moving beyond MVP */
+.registration-requests-table {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.registration-requests-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.registration-requests-table th,
+.registration-requests-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.registration-requests-table th {
+  font-weight: 600;
+  color: #333;
+  background-color: #f5f5f5;
+}
+
+.registration-requests-table .status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.registration-requests-table .status-badge.pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.registration-requests-table .status-badge.approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.registration-requests-table .status-badge.denied {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
 /* Reported Posts */
 .reported-posts-list {
   display: flex;

@@ -9,17 +9,17 @@ class Tag(Base):
     __tablename__ = "tags"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     name = Column(String(24), nullable=False)
     color_scheme = Column(String(20), default="generic")  # family, friends, inner, work, custom, generic
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
-    user = relationship("User", backref="tags")
+    owner = relationship("User", backref="tags")
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint('user_id', 'name', name='unique_user_tag'),
-        Index('idx_user_tags', 'user_id'),
+        UniqueConstraint('owner_user_id', 'name', name='unique_user_tag'),
+        Index('idx_user_tags', 'owner_user_id'),
     )
 

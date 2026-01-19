@@ -28,8 +28,15 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_REDIRECT_URI: Optional[str] = None
     
-    # S3 settings - Loaded from environment variables (required for user deletion)
-    # These are only needed if using S3 for file storage/deletion
+    # Storage settings - Loaded from environment variables (required for user deletion)
+    # R2 (Cloudflare) configuration - Primary storage
+    R2_ACCESS_KEY_ID: Optional[str] = None  # R2 Access Key ID
+    R2_SECRET_ACCESS_KEY: Optional[str] = None  # R2 Secret Access Key
+    R2_ENDPOINT_URL: Optional[str] = None  # R2 endpoint URL (e.g., https://<account-id>.r2.cloudflarestorage.com)
+    R2_BUCKET_NAME: Optional[str] = None  # R2 bucket name
+    R2_REGION: str = "auto"  # R2 uses "auto" for compatibility
+    
+    # Legacy S3 (AWS) settings - For backward compatibility
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "us-east-1"

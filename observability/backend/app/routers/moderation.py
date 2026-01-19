@@ -12,11 +12,12 @@ from app.models.post import Post
 from app.models.comment import Comment
 from app.models.connection import Connection
 from app.models.tag import Tag
-from app.models.connection_tag import ConnectionTag
+from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
-from app.models.email_verification import EmailVerification
 from app.models.reported_post import ReportedPost
-from app.schemas.moderation import UserOut, ReportedPostOut
+# MVP TEMPORARY: Registration request model - remove when moving beyond MVP
+from app.models.registration_request import RegistrationRequest, RegistrationStatus
+from app.schemas.moderation import UserOut, ReportedPostOut, RegistrationRequestOut
 
 router = APIRouter(prefix="/moderation", tags=["Moderation"])
 logger = logging.getLogger(__name__)
@@ -280,7 +281,7 @@ def delete_user(
         )
     
     try:
-        # Step 1: Delete S3 images
+        # Step 1: Delete S3/R2 images
         # Delete post photos
         for post in user.posts:
             if post.photo_urls:
@@ -288,52 +289,66 @@ def delete_user(
                     try:
                         delete_photo_from_s3(s3_key)
                     except Exception as e:
-                        logger.error(f"Failed to delete photo from S3 ({s3_key}): {str(e)}")
-                        # Continue even if S3 deletion fails
+                        logger.error(f"Failed to delete photo from storage ({s3_key}): {str(e)}")
+                        # Continue even if storage deletion fails
         
-        # Delete user avatar if it's an S3 key
-        if user.avatar_url and user.avatar_url.startswith(settings.S3_AVATAR_PREFIX):
-            try:
-                delete_photo_from_s3(user.avatar_url)
-            except Exception as e:
-                logger.error(f"Failed to delete avatar from S3 ({user.avatar_url}): {str(e)}")
+        # Delete user avatar if it's stored in S3/R2
+        # Check if avatar_url is an S3 key (starts with prefix) or contains storage indicators
+        if user.avatar_url:
+            # Check if it's an S3 key (starts with avatar prefix) or is a storage path
+            avatar_prefix = settings.S3_AVATAR_PREFIX
+            if user.avatar_url.startswith(avatar_prefix) or "/" in user.avatar_url:
+                try:
+                    # Extract the S3 key if it's a full URL, otherwise use as-is
+                    s3_key = user.avatar_url
+                    if "amazonaws.com" in user.avatar_url or "r2.cloudflarestorage.com" in user.avatar_url:
+                        # Extract key from URL if it's a full URL
+                        # Format: https://bucket.endpoint.com/key or https://endpoint.com/bucket/key
+                        parts = user.avatar_url.split("/")
+                        s3_key = "/".join(parts[-2:]) if len(parts) > 2 else parts[-1]
+                    delete_photo_from_s3(s3_key)
+                except Exception as e:
+                    logger.error(f"Failed to delete avatar from storage ({user.avatar_url}): {str(e)}")
         
-        # Step 2: Delete PostAudienceTag records (via post.audience_tags)
+        # Step 2: Get all post IDs before deletion for cleanup
+        post_ids = [post.id for post in user.posts]
+        
+        # Step 3: Delete PostAudienceTag records (via post.audience_tags)
         # We need to do this before deleting posts
-        for post in user.posts:
-            db.query(PostAudienceTag).filter(PostAudienceTag.post_id == post.id).delete()
+        if post_ids:
+            db.query(PostAudienceTag).filter(PostAudienceTag.post_id.in_(post_ids)).delete()
         
-        # Step 3: Comments will be deleted via cascade when posts are deleted
-        # But we also have direct user.comments relationship, so we'll delete them explicitly
+        # Step 4: Delete ReportedPost records for user's posts (before deleting posts)
+        if post_ids:
+            db.query(ReportedPost).filter(ReportedPost.post_id.in_(post_ids)).delete()
+        
+        # Step 5: Delete Comments authored by this user (including comments on other users' posts)
         db.query(Comment).filter(Comment.author_id == user_id).delete()
         
-        # Step 4: Delete Post records (cascade will handle comments via post.comments)
+        # Step 6: Delete Post records (cascade will handle comments via post.comments)
         db.query(Post).filter(Post.author_id == user_id).delete()
         
-        # Step 5: Delete ConnectionTag records where user is requester or recipient
-        # First get all connections involving this user
-        connections = db.query(Connection).filter(
-            or_(Connection.requester_id == user_id, Connection.recipient_id == user_id)
-        ).all()
-        connection_ids = [conn.id for conn in connections]
-        if connection_ids:
-            db.query(ConnectionTag).filter(ConnectionTag.connection_id.in_(connection_ids)).delete()
-        
-        # Step 6: Delete Connection records
-        db.query(Connection).filter(
-            or_(Connection.requester_id == user_id, Connection.recipient_id == user_id)
+        # Step 7: Delete UserTag records where user is owner or target
+        # UserTag represents tags assigned to users (owner tags target)
+        db.query(UserTag).filter(
+            or_(UserTag.owner_user_id == user_id, UserTag.target_user_id == user_id)
         ).delete()
         
-        # Step 7: Delete Tag records
-        db.query(Tag).filter(Tag.user_id == user_id).delete()
+        # Step 8: Delete Connection records
+        db.query(Connection).filter(
+            or_(Connection.user_a_id == user_id, Connection.user_b_id == user_id)
+        ).delete()
         
-        # Step 8: Delete EmailVerification records
-        db.query(EmailVerification).filter(EmailVerification.user_id == user_id).delete()
+        # Step 9: Delete Tag records (tags owned by this user)
+        db.query(Tag).filter(Tag.owner_user_id == user_id).delete()
         
-        # Step 9: Delete ReportedPost records where user is reporter
+        # Step 10: Delete ReportedPost records where user is reporter
         db.query(ReportedPost).filter(ReportedPost.reported_by_id == user_id).delete()
         
-        # Step 10: Finally delete User record
+        # Step 11: Delete ReportedPost records where user resolved reports (moderator action)
+        db.query(ReportedPost).filter(ReportedPost.resolved_by_id == user_id).delete()
+        
+        # Step 12: Finally delete User record
         db.delete(user)
         db.commit()
         
@@ -347,4 +362,163 @@ def delete_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete user: {str(e)}"
         )
+
+
+# ============================================================================
+# MVP TEMPORARY: Registration Request Management - Remove when moving beyond MVP
+# ============================================================================
+# These endpoints allow moderators to approve or deny user registration requests
+# during the MVP phase. When moving beyond MVP, remove these endpoints and
+# update the OAuth callback in backend/app/routers/auth.py to create users directly.
+# ============================================================================
+
+@router.get("/registration-requests", response_model=List[RegistrationRequestOut])
+def get_registration_requests(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    status_filter: Optional[str] = Query(None, description="Filter by status: pending, approved, denied"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_moderator_user),
+):
+    """
+    Get all registration requests - MVP TEMPORARY FEATURE.
+    
+    TODO: Remove this endpoint when moving beyond MVP phase.
+    """
+    query = db.query(RegistrationRequest).options(
+        joinedload(RegistrationRequest.reviewed_by)
+    )
+    
+    if status_filter:
+        try:
+            status_enum = RegistrationStatus[status_filter.upper()]
+            query = query.filter(RegistrationRequest.status == status_enum)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status filter: {status_filter}. Must be one of: pending, approved, denied"
+            )
+    
+    requests = (
+        query.order_by(RegistrationRequest.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    
+    result = []
+    for req in requests:
+        result.append(RegistrationRequestOut(
+            id=req.id,
+            email=req.email,
+            google_id=req.google_id,
+            full_name=req.full_name,
+            picture_url=req.picture_url,
+            status=req.status.value,
+            created_at=req.created_at,
+            reviewed_at=req.reviewed_at,
+            reviewed_by_id=req.reviewed_by_id,
+            reviewed_by=UserOut.model_validate(req.reviewed_by) if req.reviewed_by else None,
+        ))
+    
+    return result
+
+
+@router.post("/registration-requests/{request_id}/approve", status_code=status.HTTP_200_OK)
+def approve_registration_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_moderator_user),
+):
+    """
+    Approve a registration request and create the user account - MVP TEMPORARY FEATURE.
+    
+    TODO: Remove this endpoint when moving beyond MVP phase.
+    """
+    from datetime import datetime, timezone
+    
+    # Get the registration request
+    reg_request = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not reg_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Registration request not found"
+        )
+    
+    if reg_request.status != RegistrationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Registration request has already been {reg_request.status.value}"
+        )
+    
+    # Check if user already exists (shouldn't happen, but safety check)
+    existing_user = db.query(User).filter(
+        (User.email == reg_request.email) | (User.google_id == reg_request.google_id)
+    ).first()
+    
+    if existing_user:
+        # User already exists, mark request as approved anyway
+        reg_request.status = RegistrationStatus.APPROVED
+        reg_request.reviewed_at = datetime.now(timezone.utc)
+        reg_request.reviewed_by_id = current_user.id
+        db.commit()
+        logger.warning(f"Registration request {request_id} approved but user already exists: {reg_request.email}")
+        return {"message": "User already exists", "user_id": existing_user.id}
+    
+    # Create the user account
+    new_user = User(
+        email=reg_request.email,
+        username=None,  # User must set username via username selection endpoint
+        google_id=reg_request.google_id,
+        auth_provider="google",
+        full_name=reg_request.full_name,
+        picture_url=reg_request.picture_url,
+    )
+    db.add(new_user)
+    
+    # Update registration request status
+    reg_request.status = RegistrationStatus.APPROVED
+    reg_request.reviewed_at = datetime.now(timezone.utc)
+    reg_request.reviewed_by_id = current_user.id
+    
+    db.commit()
+    db.refresh(new_user)
+    
+    logger.info(f"Registration request {request_id} approved by moderator {current_user.id}, user {new_user.id} created")
+    return {"message": "Registration request approved and user created", "user_id": new_user.id}
+
+
+@router.post("/registration-requests/{request_id}/deny", status_code=status.HTTP_200_OK)
+def deny_registration_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_moderator_user),
+):
+    """
+    Deny a registration request - MVP TEMPORARY FEATURE.
+    
+    TODO: Remove this endpoint when moving beyond MVP phase.
+    """
+    from datetime import datetime, timezone
+    
+    reg_request = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not reg_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Registration request not found"
+        )
+    
+    if reg_request.status != RegistrationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Registration request has already been {reg_request.status.value}"
+        )
+    
+    reg_request.status = RegistrationStatus.DENIED
+    reg_request.reviewed_at = datetime.now(timezone.utc)
+    reg_request.reviewed_by_id = current_user.id
+    db.commit()
+    
+    logger.info(f"Registration request {request_id} denied by moderator {current_user.id}")
+    return {"message": "Registration request denied"}
 

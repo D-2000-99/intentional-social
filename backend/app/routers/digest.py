@@ -4,6 +4,8 @@ Digest Router
 Handles the weekly digest feature - a chronological, reflective view of posts
 from the current week (Sunday to Saturday).
 """
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
@@ -13,6 +15,7 @@ from sqlalchemy import or_, and_
 from app.core.deps import get_db, get_current_user
 from app.core.s3 import generate_presigned_urls
 from app.core.llm import generate_weekly_summary
+from app.core.metrics import digest_requests_total, digest_latency_seconds
 from app.config import settings
 from app.models.user import User
 from app.models.post import Post
@@ -21,8 +24,13 @@ from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
 from app.models.tag import Tag
 from app.schemas.post import PostOut
+from app.services.connection_service import ConnectionService
+from app.services.post_service import PostService
+from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/digest", tags=["Digest"])
+
+logger = logging.getLogger(__name__)
 
 
 def get_week_bounds(date: Optional[datetime] = None) -> tuple[datetime, datetime]:
@@ -179,245 +187,181 @@ def get_digest(
             "week_end": str  # ISO format
         }
     """
-    # Parse client timestamp or use server time as fallback
-    if client_timestamp:
-        try:
-            # Parse ISO format timestamp (client sends local time without timezone)
-            if client_timestamp.endswith('Z'):
-                # UTC format - convert to naive (shouldn't happen with our frontend, but handle it)
-                client_date = datetime.fromisoformat(client_timestamp.replace('Z', '+00:00'))
-                if client_date.tzinfo:
-                    client_date = client_date.replace(tzinfo=None)
-            elif '+' in client_timestamp or (client_timestamp.count('-') > 2 and 'T' in client_timestamp):
-                # Has timezone offset - parse and convert to naive
-                client_date = datetime.fromisoformat(client_timestamp)
-                if client_date.tzinfo:
-                    client_date = client_date.replace(tzinfo=None)
-            else:
-                # Naive datetime (local time from client) - parse as-is
-                client_date = datetime.fromisoformat(client_timestamp)
-        except (ValueError, AttributeError) as e:
-            # If parsing fails, fall back to server time
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to parse client_timestamp '{client_timestamp}': {e}. Using server time.")
-            client_date = datetime.now()
-    else:
-        # No client timestamp provided, use server time
-        client_date = datetime.now()
+    # Track metrics
+    digest_requests_total.inc()
+    start_time = time.time()
     
-    # Get week bounds (Sunday to Saturday) using client time
-    week_start, week_end = get_week_bounds(client_date)
-    
-    # Get all accepted connections
-    my_connections = (
-        db.query(Connection)
-        .filter(
-            or_(
-                Connection.user_a_id == current_user.id,
-                Connection.user_b_id == current_user.id,
-            ),
-            Connection.status == ConnectionStatus.ACCEPTED,
-        )
-        .all()
-    )
-    
-    # Extract connected user IDs
-    connected_user_ids = []
-    for conn in my_connections:
-        if conn.user_a_id == current_user.id:
-            connected_user_ids.append(conn.user_b_id)
+    try:
+        # Parse client timestamp or use server time as fallback
+        if client_timestamp:
+            try:
+                # Parse ISO format timestamp (client sends local time without timezone)
+                if client_timestamp.endswith('Z'):
+                    # UTC format - convert to naive (shouldn't happen with our frontend, but handle it)
+                    client_date = datetime.fromisoformat(client_timestamp.replace('Z', '+00:00'))
+                    if client_date.tzinfo:
+                        client_date = client_date.replace(tzinfo=None)
+                elif '+' in client_timestamp or (client_timestamp.count('-') > 2 and 'T' in client_timestamp):
+                    # Has timezone offset - parse and convert to naive
+                    client_date = datetime.fromisoformat(client_timestamp)
+                    if client_date.tzinfo:
+                        client_date = client_date.replace(tzinfo=None)
+                else:
+                    # Naive datetime (local time from client) - parse as-is
+                    client_date = datetime.fromisoformat(client_timestamp)
+            except (ValueError, AttributeError) as e:
+                # If parsing fails, fall back to server time
+                logger.warning(f"Failed to parse client_timestamp '{client_timestamp}': {e}. Using server time.")
+                client_date = datetime.now()
         else:
-            connected_user_ids.append(conn.user_a_id)
-    
-    # Add own user ID to see own posts
-    connected_user_ids.append(current_user.id)
-    
-    # Filter by tag if requested
-    if tag_filter and tag_filter not in ["all", "friends", "family"]:
-        # Specific tag ID provided
-        try:
-            tag_id = int(tag_filter)
-            # Get users that have this tag (where current user is the owner)
+            # No client timestamp provided, use server time
+            client_date = datetime.now()
+        
+        # Get week bounds (Sunday to Saturday) using client time
+        week_start, week_end = get_week_bounds(client_date)
+        
+        # Use ConnectionService to get connected user IDs (optimized with SQL CASE)
+        connected_user_ids = ConnectionService.get_connected_user_ids(
+            current_user, db, include_self=True
+        )
+        
+        # Filter by tag if requested
+        if tag_filter and tag_filter not in ["all", "friends", "family"]:
+            # Specific tag ID provided
+            try:
+                tag_id = int(tag_filter)
+                # Get users that have this tag (where current user is the owner)
+                tagged_user_ids = (
+                    db.query(UserTag.target_user_id)
+                    .filter(
+                        UserTag.owner_user_id == current_user.id,
+                        UserTag.tag_id == tag_id
+                    )
+                    .distinct()
+                    .all()
+                )
+                tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
+                
+                # Filter connected_user_ids to only those with the selected tag
+                filtered_user_ids = [
+                    user_id for user_id in connected_user_ids
+                    if user_id in tagged_user_id_set
+                ]
+                
+                connected_user_ids = filtered_user_ids
+            except ValueError:
+                # Invalid tag ID, ignore filter
+                pass
+        elif tag_filter in ["friends", "family"]:
+            # Filter by tag color_scheme
+            tag_scheme = tag_filter  # "friends" or "family"
+            # Get users that have tags with this color_scheme (where current user is the owner)
             tagged_user_ids = (
                 db.query(UserTag.target_user_id)
+                .join(Tag, UserTag.tag_id == Tag.id)
                 .filter(
                     UserTag.owner_user_id == current_user.id,
-                    UserTag.tag_id == tag_id
+                    Tag.owner_user_id == current_user.id,
+                    Tag.color_scheme == tag_scheme
                 )
                 .distinct()
                 .all()
             )
             tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
             
-            # Filter connected_user_ids to only those with the selected tag
+            # Filter connected_user_ids to only those with tags of this color_scheme
             filtered_user_ids = [
                 user_id for user_id in connected_user_ids
                 if user_id in tagged_user_id_set
             ]
             
             connected_user_ids = filtered_user_ids
-        except ValueError:
-            # Invalid tag ID, ignore filter
-            pass
-    elif tag_filter in ["friends", "family"]:
-        # Filter by tag color_scheme
-        tag_scheme = tag_filter  # "friends" or "family"
-        # Get users that have tags with this color_scheme (where current user is the owner)
-        tagged_user_ids = (
-            db.query(UserTag.target_user_id)
-            .join(Tag, UserTag.tag_id == Tag.id)
+        
+        # Get posts from this week (Sunday to Saturday)
+        if not connected_user_ids:
+            return {
+                "posts": [],
+                "weekly_summary": None,
+                "week_start": week_start.isoformat(),
+                "week_end": week_end.isoformat()
+            }
+        
+        # Query posts from this week
+        # Since posts are stored as naive datetimes (client time) and week bounds are also naive,
+        # the comparison should work correctly
+        posts = (
+            db.query(Post)
+            .options(joinedload(Post.author))
             .filter(
-                UserTag.owner_user_id == current_user.id,
-                Tag.owner_user_id == current_user.id,
-                Tag.color_scheme == tag_scheme
+                Post.author_id.in_(connected_user_ids),
+                Post.created_at >= week_start,
+                Post.created_at <= week_end
             )
-            .distinct()
+            .order_by(Post.created_at.asc())  # Oldest first for chronological digest
             .all()
         )
-        tagged_user_id_set = {tu[0] for tu in tagged_user_ids}
         
-        # Filter connected_user_ids to only those with tags of this color_scheme
-        filtered_user_ids = [
-            user_id for user_id in connected_user_ids
-            if user_id in tagged_user_id_set
-        ]
+        # Use PostService to filter posts by audience (eliminates code duplication)
+        filtered_posts = PostService.filter_posts_by_audience(posts, current_user, db)
         
-        connected_user_ids = filtered_user_ids
-    
-    # Get posts from this week (Sunday to Saturday)
-    if not connected_user_ids:
+        # Apply Digest filtering rules (different from feed)
+        # This is where we differentiate Digest from Feed
+        digest_filtered_posts = filter_digest_posts(filtered_posts, max_pages=12)
+        
+        # Use PostService to batch load audience tags (fixes N+1 query problem)
+        audience_tags_map = PostService.batch_load_audience_tags(digest_filtered_posts, db)
+        
+        # Initialize StorageService (without Redis for now)
+        storage_service = StorageService(redis_client=None)
+        
+        # Convert to PostOut with pre-signed URLs
+        result_posts = []
+        posts_with_scores = []  # For weekly summary generation
+        
+        for post in digest_filtered_posts:
+            # Generate pre-signed URLs for photos
+            photo_urls_presigned = []
+            if post.photo_urls:
+                try:
+                    photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
+                except Exception as e:
+                    logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
+                    photo_urls_presigned = []
+            
+            # Create PostOut
+            post_dict = {
+                "id": post.id,
+                "author_id": post.author_id,
+                "content": post.content,
+                "audience_type": post.audience_type,
+                "photo_urls": post.photo_urls or [],
+                "photo_urls_presigned": photo_urls_presigned,
+                "created_at": post.created_at,
+                "author": post.author,
+                "audience_tags": audience_tags_map.get(post.id, []),
+                "digest_summary": post.digest_summary  # Include digest summary if available
+            }
+            result_posts.append(PostOut(**post_dict))
+            
+            # Collect for weekly summary
+            if post.importance_score is not None:
+                posts_with_scores.append({
+                    "importance_score": post.importance_score,
+                    "summary": post.digest_summary
+                })
+        
+        # Generate weekly summary
+        weekly_summary = None
+        if posts_with_scores:
+            weekly_summary = generate_weekly_summary(posts_with_scores)
+        
         return {
-            "posts": [],
-            "weekly_summary": None,
+            "posts": result_posts,
+            "weekly_summary": weekly_summary,
             "week_start": week_start.isoformat(),
             "week_end": week_end.isoformat()
         }
-    
-    # Query posts from this week
-    # Since posts are stored as naive datetimes (client time) and week bounds are also naive,
-    # the comparison should work correctly
-    posts = (
-        db.query(Post)
-        .options(joinedload(Post.author))
-        .filter(
-            Post.author_id.in_(connected_user_ids),
-            Post.created_at >= week_start,
-            Post.created_at <= week_end
-        )
-        .order_by(Post.created_at.asc())  # Oldest first for chronological digest
-        .all()
-    )
-    
-    # Filter posts based on audience settings (same logic as feed)
-    filtered_posts = []
-    for post in posts:
-        # Always show own posts
-        if post.author_id == current_user.id:
-            filtered_posts.append(post)
-            continue
-            
-        # Show posts with audience_type = 'all'
-        if post.audience_type == 'all':
-            filtered_posts.append(post)
-            continue
-        
-        # Skip private posts from others
-        if post.audience_type == 'private':
-            continue
-        
-        # For tag-based audience, check if current user has the required tags
-        if post.audience_type == 'tags':
-            post_audience_tags = (
-                db.query(PostAudienceTag.tag_id)
-                .filter(PostAudienceTag.post_id == post.id)
-                .all()
-            )
-            post_tag_ids = [t[0] for t in post_audience_tags]
-            
-            if not post_tag_ids:
-                filtered_posts.append(post)
-                continue
-            
-            # Check if post author has tagged current_user with any of the required tags
-            # The post author is the owner, current_user is the target
-            user_tags = (
-                db.query(UserTag.tag_id)
-                .filter(
-                    UserTag.owner_user_id == post.author_id,
-                    UserTag.target_user_id == current_user.id,
-                    UserTag.tag_id.in_(post_tag_ids)
-                )
-                .first()
-            )
-            
-            if user_tags:
-                filtered_posts.append(post)
-    
-    # Apply Digest filtering rules (different from feed)
-    # This is where we differentiate Digest from Feed
-    digest_filtered_posts = filter_digest_posts(filtered_posts, max_pages=12)
-    
-    # Convert to PostOut with pre-signed URLs
-    result_posts = []
-    posts_with_scores = []  # For weekly summary generation
-    
-    for post in digest_filtered_posts:
-        # Generate pre-signed URLs for photos
-        photo_urls_presigned = []
-        if post.photo_urls:
-            try:
-                photo_urls_presigned = generate_presigned_urls(post.photo_urls)
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                photo_urls_presigned = []
-        
-        # Get audience tags
-        audience_tags = []
-        if post.audience_type == "tags":
-            post_audience_tags = (
-                db.query(PostAudienceTag)
-                .filter(PostAudienceTag.post_id == post.id)
-                .all()
-            )
-            tag_ids = [pat.tag_id for pat in post_audience_tags]
-            if tag_ids:
-                tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
-                audience_tags = tags
-        
-        # Create PostOut
-        post_dict = {
-            "id": post.id,
-            "author_id": post.author_id,
-            "content": post.content,
-            "audience_type": post.audience_type,
-            "photo_urls": post.photo_urls or [],
-            "photo_urls_presigned": photo_urls_presigned,
-            "created_at": post.created_at,
-            "author": post.author,
-            "audience_tags": audience_tags,
-            "digest_summary": post.digest_summary  # Include digest summary if available
-        }
-        result_posts.append(PostOut(**post_dict))
-        
-        # Collect for weekly summary
-        if post.importance_score is not None:
-            posts_with_scores.append({
-                "importance_score": post.importance_score,
-                "summary": post.digest_summary
-            })
-    
-    # Generate weekly summary
-    weekly_summary = None
-    if posts_with_scores:
-        weekly_summary = generate_weekly_summary(posts_with_scores)
-    
-    return {
-        "posts": result_posts,
-        "weekly_summary": weekly_summary,
-        "week_start": week_start.isoformat(),
-        "week_end": week_end.isoformat()
-    }
-
+    finally:
+        # Record latency
+        duration = time.time() - start_time
+        digest_latency_seconds.observe(duration)
