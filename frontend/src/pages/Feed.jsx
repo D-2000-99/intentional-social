@@ -67,24 +67,11 @@ export default function Feed() {
         // Mark scroll as programmatic
         window.dispatchEvent(new CustomEvent('programmatic-scroll'));
         
-        // Check if post has notifications (to auto-expand comments)
-        const postSummary = notificationSummary[postId];
-        const hasNotifications = postSummary && (postSummary.has_unread_comments || postSummary.has_unread_replies);
-        
-        // Helper function to scroll and auto-expand
-        const scrollAndExpand = () => {
+        // Helper function to scroll to post
+        const scrollToPost = () => {
             const element = document.getElementById(`post-${postId}`);
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                
-                // After scroll animation completes, auto-expand comments if there are notifications
-                if (hasNotifications) {
-                    setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('auto-expand-comments', {
-                            detail: { postId }
-                        }));
-                    }, 800); // Wait for scroll animation to complete
-                }
             }
             if (onComplete) onComplete();
         };
@@ -93,7 +80,7 @@ export default function Feed() {
         const existingPost = posts.find(p => p.id === postId);
         if (existingPost) {
             // Post is already loaded, scroll to it
-            setTimeout(scrollAndExpand, 100);
+            setTimeout(scrollToPost, 100);
             return;
         }
         
@@ -125,13 +112,9 @@ export default function Feed() {
                 const targetPost = data.find(p => p.id === postId);
                 if (targetPost) {
                     found = true;
-                    // Wait for DOM update and notification summary to be fetched, then scroll
+                    // Wait for DOM update, then scroll
                     setTimeout(() => {
-                        // Re-check notification summary after posts are loaded
-                        const updatedSummary = notificationSummary[postId];
-                        const updatedHasNotifications = updatedSummary && (updatedSummary.has_unread_comments || updatedSummary.has_unread_replies);
-                        
-                        scrollAndExpand();
+                        scrollToPost();
                     }, 300);
                     break;
                 }
@@ -148,7 +131,7 @@ export default function Feed() {
             console.warn(`Post ${postId} not found in recent 50 posts`);
             if (onComplete) onComplete();
         }
-    }, [posts, selectedTagIds, token, notificationSummary]);
+    }, [posts, selectedTagIds, token]);
 
     useEffect(() => {
         fetchFeed(selectedTagIds);

@@ -143,7 +143,7 @@ const Layout = ({ children }) => {
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Home</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
-                        <NotificationBell />
+                        {isActive("/") && <NotificationBell />}
                         <Link to="/profile" className="user-profile-link">
                             {avatarUrl ? (
                                 <img 

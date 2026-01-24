@@ -256,6 +256,21 @@ nav.nav-visible {
   cursor: wait;
 }
 
+.bell-button.bell-appear {
+  animation: bellFadeIn 0.3s ease-in;
+}
+
+@keyframes bellFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .bell-dot {
   position: absolute;
   top: 6px;

@@ -114,7 +114,7 @@ export default function NotificationBell() {
 
     return (
         <button
-            className={`bell-button ${!hasNotifications ? 'bell-disabled' : ''} ${loading ? 'bell-loading' : ''}`}
+            className={`bell-button ${!hasNotifications ? 'bell-disabled' : ''} ${loading ? 'bell-loading' : ''} bell-appear`}
             onClick={handleClick}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}

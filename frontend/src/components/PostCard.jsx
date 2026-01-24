@@ -25,9 +25,6 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [replyContent, setReplyContent] = useState("");
     const [submittingReply, setSubmittingReply] = useState(false);
     
-    // Track if this is an auto-expand (from bell click) vs manual expand
-    const isAutoExpandingRef = useRef(false);
-    
     // Local notification state (updated from prop and when clearing)
     const [localNotificationSummary, setLocalNotificationSummary] = useState(
         notificationSummary || { has_unread_comments: false, has_unread_replies: false }
@@ -39,55 +36,6 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             setLocalNotificationSummary(notificationSummary);
         }
     }, [notificationSummary]);
-
-    // Listen for auto-expand events (when jumping to post via bell)
-    useEffect(() => {
-        const handleAutoExpand = async (event) => {
-            if (event.detail.postId === post.id) {
-                // Auto-expand comments if there are unread notifications
-                if (localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) {
-                    if (!commentsExpanded) {
-                        isAutoExpandingRef.current = true;
-                        
-                        // Fetch comments if needed
-                        if (comments.length === 0) {
-                            setLoadingComments(true);
-                            try {
-                                const data = await api.getPostComments(token, post.id);
-                                setComments(data);
-                                
-                                // Auto-expand replies for comments with unread replies
-                                setTimeout(() => {
-                                    data.forEach(comment => {
-                                        if (comment.has_unread_reply) {
-                                            handleToggleReplies(comment.id);
-                                        }
-                                    });
-                                }, 100);
-                            } catch (err) {
-                                console.error("Failed to fetch comments", err);
-                            } finally {
-                                setLoadingComments(false);
-                            }
-                        }
-                        
-                        setCommentsExpanded(true);
-                        
-                        // Reset flag after a delay
-                        setTimeout(() => {
-                            isAutoExpandingRef.current = false;
-                        }, 500);
-                    }
-                }
-            }
-        };
-        
-        window.addEventListener('auto-expand-comments', handleAutoExpand);
-        
-        return () => {
-            window.removeEventListener('auto-expand-comments', handleAutoExpand);
-        };
-    }, [post.id, localNotificationSummary, commentsExpanded, comments.length, token]);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -139,7 +87,6 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
 
     const handleToggleComments = async () => {
         const willExpand = !commentsExpanded;
-        const isAutoExpand = isAutoExpandingRef.current;
         
         if (willExpand && comments.length === 0) {
             // Fetch comments when expanding for the first time
@@ -147,23 +94,9 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             try {
                 const data = await api.getPostComments(token, post.id);
                 setComments(data);
-                
-                // After loading comments, auto-expand replies for comments with unread replies
-                // Only do this on auto-expand (from bell click), not manual expand
-                if (isAutoExpand) {
-                    setTimeout(() => {
-                        data.forEach(comment => {
-                            if (comment.has_unread_reply) {
-                                handleToggleReplies(comment.id);
-                            }
-                        });
-                    }, 100);
-                }
             } catch (err) {
                 console.error("Failed to fetch comments", err);
-                if (!isAutoExpand) {
-                    alert(`Failed to load comments: ${err.message}`);
-                }
+                alert(`Failed to load comments: ${err.message}`);
             } finally {
                 setLoadingComments(false);
             }
@@ -171,8 +104,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         
         setCommentsExpanded(willExpand);
         
-        // Clear notifications when manually opening comments (not on auto-expand)
-        if (willExpand && !isAutoExpand) {
+        // Clear notifications when manually opening comments
+        if (willExpand) {
             markPostNotificationsRead();
         }
     };
