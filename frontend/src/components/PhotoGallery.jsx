@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resolveImageUrls } from "../utils/imageUrls";
 import GalleryModal from "./GalleryModal";
 
 export default function PhotoGallery({ photos }) {
@@ -6,6 +7,8 @@ export default function PhotoGallery({ photos }) {
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
 
     if (!photos || photos.length === 0) return null;
+
+    const resolvedPhotos = resolveImageUrls(photos);
 
     const handlePhotoClick = (index) => {
         setSelectedPhotoIndex(index);
@@ -17,12 +20,12 @@ export default function PhotoGallery({ photos }) {
     };
 
     // Single photo - full width
-    if (photos.length === 1) {
+    if (resolvedPhotos.length === 1) {
         return (
             <>
                 <div className="photo-gallery photo-gallery-single">
                     <img
-                        src={photos[0]}
+                        src={resolvedPhotos[0]}
                         alt="Post photo 1"
                         className="photo-gallery-image"
                         onClick={() => handlePhotoClick(0)}
@@ -35,7 +38,7 @@ export default function PhotoGallery({ photos }) {
                 </div>
                 {isGalleryOpen && (
                     <GalleryModal
-                        photos={photos}
+                        photos={resolvedPhotos}
                         initialIndex={selectedPhotoIndex}
                         onClose={handleCloseGallery}
                     />
@@ -45,12 +48,12 @@ export default function PhotoGallery({ photos }) {
     }
 
     // Two photos - side by side
-    if (photos.length === 2) {
+    if (resolvedPhotos.length === 2) {
         return (
             <>
                 <div className="photo-gallery photo-gallery-two">
                     <img
-                        src={photos[0]}
+                        src={resolvedPhotos[0]}
                         alt="Post photo 1"
                         className="photo-gallery-image"
                         onClick={() => handlePhotoClick(0)}
@@ -61,7 +64,7 @@ export default function PhotoGallery({ photos }) {
                         }}
                     />
                     <img
-                        src={photos[1]}
+                        src={resolvedPhotos[1]}
                         alt="Post photo 2"
                         className="photo-gallery-image"
                         onClick={() => handlePhotoClick(1)}
@@ -74,7 +77,7 @@ export default function PhotoGallery({ photos }) {
                 </div>
                 {isGalleryOpen && (
                     <GalleryModal
-                        photos={photos}
+                        photos={resolvedPhotos}
                         initialIndex={selectedPhotoIndex}
                         onClose={handleCloseGallery}
                     />
@@ -85,9 +88,9 @@ export default function PhotoGallery({ photos }) {
 
     // Three or more photos - space-saving layout
     // Large photo on left (2/3), two small photos stacked on right (1/3 each)
-    const mainPhoto = photos[0];
-    const rightPhotos = photos.slice(1, 3);
-    const remainingCount = photos.length - 3;
+    const mainPhoto = resolvedPhotos[0];
+    const rightPhotos = resolvedPhotos.slice(1, 3);
+    const remainingCount = resolvedPhotos.length - 3;
 
     return (
         <>
@@ -132,7 +135,7 @@ export default function PhotoGallery({ photos }) {
             </div>
             {isGalleryOpen && (
                 <GalleryModal
-                    photos={photos}
+                    photos={resolvedPhotos}
                     initialIndex={selectedPhotoIndex}
                     onClose={handleCloseGallery}
                 />

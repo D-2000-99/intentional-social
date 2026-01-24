@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, union_all, or_, and_
 
 from app.core.deps import get_db, get_current_user
-from app.core.s3 import generate_presigned_urls
+from app.core.image_urls import build_image_path
 from app.core.metrics import feed_requests_total, feed_latency_seconds
 from app.models.user import User
 from app.models.post import Post
@@ -16,7 +16,6 @@ from app.models.tag import Tag
 from app.schemas.post import PostOut
 from app.services.connection_service import ConnectionService
 from app.services.post_service import PostService
-from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/feed", tags=["Feed"])
 
@@ -133,23 +132,10 @@ def get_feed(
         # Use PostService to batch load audience tags (fixes N+1 query problem)
         audience_tags_map = PostService.batch_load_audience_tags(filtered_posts, db)
         
-        # Initialize StorageService (without Redis for now)
-        storage_service = StorageService(redis_client=None)
-
         # Convert posts to PostOut with pre-signed URLs for photos
         result = []
         for post in filtered_posts:
-            # Generate pre-signed URLs for photos
-            photo_urls_presigned = []
-            if post.photo_urls:
-                try:
-                    photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
-                except Exception as e:
-                    # Log error for debugging
-                    logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                    logger.error(f"Photo URLs: {post.photo_urls}")
-                    # Return empty list if pre-signed URL generation fails
-                    photo_urls_presigned = []
+            photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
             
             # Create PostOut with pre-signed URLs
             post_dict = {

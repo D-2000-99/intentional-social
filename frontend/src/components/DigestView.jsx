@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { sanitizeText, sanitizeUrlParam } from "../utils/security";
+import { resolveImageUrl } from "../utils/imageUrls";
 
 export default function DigestView({ onSwitchToNow }) {
     const [digestData, setDigestData] = useState(null);
@@ -269,6 +270,7 @@ export default function DigestView({ onSwitchToNow }) {
                         {/* Image Posts for this day */}
                         {day.imagePosts.map((post) => {
                             const firstPhoto = post.photo_urls_presigned?.[0] || null;
+                            const firstPhotoUrl = firstPhoto ? resolveImageUrl(firstPhoto) : null;
                             const username = post.author.display_name || post.author.username;
                             const caption = post.content || "";
 
@@ -292,11 +294,11 @@ export default function DigestView({ onSwitchToNow }) {
                                         </div>
 
                                         {/* Image */}
-                                        {firstPhoto && (
+                                        {firstPhotoUrl && (
                                             <div className="digest-image-container">
                                                 <div className="digest-image-border"></div>
                                                 <img 
-                                                    src={firstPhoto} 
+                                                    src={firstPhotoUrl} 
                                                     alt="Post" 
                                                     className="digest-image"
                                                 />

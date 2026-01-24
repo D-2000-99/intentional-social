@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str  # Must be set via environment variable
     SECRET_KEY: str  # Must be set via environment variable (min 32 chars)
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    MAX_CONNECTIONS: int = 10
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    MAX_CONNECTIONS: int = 10 # Number of connections allowed per user
     
     # CORS configuration
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://intentional-social.pages.dev/,https://intentionalsocial.org,https://dev.intentional-social.pages.dev"
@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     # Prefix settings (used for both S3 and R2)
     STORAGE_PHOTO_PREFIX: str = "posts/photos"  # Prefix for photo objects
     STORAGE_AVATAR_PREFIX: str = "users/avatars"  # Prefix for avatar objects
-    STORAGE_PRESIGNED_URL_EXPIRATION: int = 3600  # 1 hour in seconds
+    STORAGE_PRESIGNED_URL_EXPIRATION: int = 43200  # 12 hours in seconds
+    STORAGE_IMAGE_CACHE_CONTROL: str = "private, max-age=31536000, immutable"
+    STORAGE_REDIRECT_CACHE_MAX_AGE: int = 3600  # Cache 302 responses for 1 hour
     
     # R2 (Cloudflare) configuration - Destination for migration and future use
     R2_ACCESS_KEY_ID: Optional[str] = None  # R2 Access Key ID

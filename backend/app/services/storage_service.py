@@ -17,7 +17,8 @@ class StorageService:
     def get_presigned_url(
         self,
         s3_key: str,
-        expiration: int = 3600
+        expiration: int = 3600,
+        response_cache_control: Optional[str] = None,
     ) -> str:
         """
         Get presigned URL with optional Redis caching.
@@ -30,15 +31,16 @@ class StorageService:
         Returns:
             Presigned URL string
         """
+        cache_suffix = response_cache_control or "default"
         if self.redis:
-            cache_key = f"presigned:{s3_key}"
+            cache_key = f"presigned:{s3_key}:{cache_suffix}"
             cached_url = self.redis.get(cache_key)
             if cached_url:
                 return cached_url.decode('utf-8')
         
         # Generate new URL
         from app.core.s3 import generate_presigned_url
-        url = generate_presigned_url(s3_key, expiration)
+        url = generate_presigned_url(s3_key, expiration, response_cache_control)
         
         # Cache it
         if self.redis:
@@ -50,7 +52,8 @@ class StorageService:
     def batch_get_presigned_urls(
         self,
         s3_keys: List[str],
-        expiration: int = 3600
+        expiration: int = 3600,
+        response_cache_control: Optional[str] = None,
     ) -> List[str]:
         """
         Get multiple presigned URLs efficiently.
@@ -68,8 +71,9 @@ class StorageService:
         urls = []
         
         # Try to get from cache first
+        cache_suffix = response_cache_control or "default"
         if self.redis:
-            cache_keys = [f"presigned:{key}" for key in s3_keys]
+            cache_keys = [f"presigned:{key}:{cache_suffix}" for key in s3_keys]
             cached_urls = self.redis.mget(cache_keys)
             
             uncached_indices = []
@@ -84,16 +88,16 @@ class StorageService:
             if uncached_indices:
                 from app.core.s3 import generate_presigned_url
                 for i in uncached_indices:
-                    url = generate_presigned_url(s3_keys[i], expiration)
+                    url = generate_presigned_url(s3_keys[i], expiration, response_cache_control)
                     urls[i] = url
                     
                     # Cache it
-                    cache_key = f"presigned:{s3_keys[i]}"
+                    cache_key = f"presigned:{s3_keys[i]}:{cache_suffix}"
                     cache_ttl = expiration - 60
                     self.redis.setex(cache_key, cache_ttl, url)
         else:
             # No cache, generate all
             from app.core.s3 import generate_presigned_urls
-            urls = generate_presigned_urls(s3_keys, expiration)
+            urls = generate_presigned_urls(s3_keys, expiration, response_cache_control)
         
         return urls

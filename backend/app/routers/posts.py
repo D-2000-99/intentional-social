@@ -6,7 +6,8 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from app.core.deps import get_db, get_current_user
-from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_urls, generate_presigned_url, delete_photo_from_s3
+from app.core.image_urls import build_image_path
+from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_url, delete_photo_from_s3
 from app.models.post import Post
 from app.models.post_audience_tag import PostAudienceTag
 from app.models.reported_post import ReportedPost
@@ -14,7 +15,6 @@ from app.models.tag import Tag
 from app.schemas.post import PostCreate, PostOut, ReportPostRequest
 from app.models.user import User
 from app.services.post_service import PostService
-from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
@@ -217,14 +217,7 @@ async def create_post(
         db.commit()
         db.refresh(new_post)
 
-    # Use StorageService for presigned URLs
-    storage_service = StorageService(redis_client=None)
-    photo_urls_presigned = []
-    if new_post.photo_urls:
-        try:
-            photo_urls_presigned = storage_service.batch_get_presigned_urls(new_post.photo_urls)
-        except Exception:
-            photo_urls_presigned = []
+    photo_urls_presigned = [build_image_path(key) for key in (new_post.photo_urls or [])]
     
     # Use PostService to batch load audience tags
     audience_tags_map = PostService.batch_load_audience_tags([new_post], db)
@@ -260,20 +253,10 @@ def get_my_posts(
     # Use PostService to batch load audience tags (fixes N+1 query problem)
     audience_tags_map = PostService.batch_load_audience_tags(posts, db)
     
-    # Use StorageService for presigned URLs
-    storage_service = StorageService(redis_client=None)
-    
-    # Convert to PostOut with pre-signed URLs
+    # Convert to PostOut with stable image URLs
     result = []
     for post in posts:
-        photo_urls_presigned = []
-        if post.photo_urls:
-            try:
-                photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
-            except Exception as e:
-                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                logger.error(f"Photo URLs: {post.photo_urls}")
-                photo_urls_presigned = []
+        photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
         
         post_dict = {
             "id": post.id,
@@ -317,20 +300,10 @@ def get_user_posts(
     # Use PostService to batch load audience tags (fixes N+1 query problem)
     audience_tags_map = PostService.batch_load_audience_tags(posts, db)
     
-    # Use StorageService for presigned URLs
-    storage_service = StorageService(redis_client=None)
-    
-    # Convert to PostOut with pre-signed URLs
+    # Convert to PostOut with stable image URLs
     result = []
     for post in posts:
-        photo_urls_presigned = []
-        if post.photo_urls:
-            try:
-                photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
-            except Exception as e:
-                logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                logger.error(f"Photo URLs: {post.photo_urls}")
-                photo_urls_presigned = []
+        photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
         
         post_dict = {
             "id": post.id,

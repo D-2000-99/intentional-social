@@ -169,6 +169,7 @@ def upload_photo_to_s3(file_content: bytes, post_id: int, user_id: int, file_ext
             Key=s3_key,
             Body=file_content,
             ContentType=content_type,
+            CacheControl=settings.STORAGE_IMAGE_CACHE_CONTROL,
             # Note: ACL is not set - rely on bucket policies for access control
             # Objects are private by default
             Metadata={
@@ -186,7 +187,11 @@ def upload_photo_to_s3(file_content: bytes, post_id: int, user_id: int, file_ext
         raise Exception(f"Failed to upload photo to S3: {str(e)}")
 
 
-def generate_presigned_url(s3_key: str, expiration: Optional[int] = None) -> str:
+def generate_presigned_url(
+    s3_key: str,
+    expiration: Optional[int] = None,
+    response_cache_control: Optional[str] = None,
+) -> str:
     """
     Generate a pre-signed URL for reading an S3 object.
     
@@ -213,12 +218,15 @@ def generate_presigned_url(s3_key: str, expiration: Optional[int] = None) -> str
         # Note: s3:GetObject IAM permission is required (not s3:HeadObject)
         # The URL will only work if the object exists when accessed
         bucket_name = settings.R2_BUCKET_NAME or settings.S3_BUCKET_NAME
+        params = {
+            'Bucket': bucket_name,
+            'Key': s3_key
+        }
+        if response_cache_control:
+            params['ResponseCacheControl'] = response_cache_control
         url = client.generate_presigned_url(
             'get_object',
-            Params={
-                'Bucket': bucket_name,
-                'Key': s3_key
-            },
+            Params=params,
             ExpiresIn=expiration
         )
         logger.debug(f"Generated pre-signed URL for {s3_key}")
@@ -235,7 +243,11 @@ def generate_presigned_url(s3_key: str, expiration: Optional[int] = None) -> str
         raise Exception(f"Failed to generate pre-signed URL ({error_code}): {error_message}")
 
 
-def generate_presigned_urls(s3_keys: List[str], expiration: Optional[int] = None) -> List[str]:
+def generate_presigned_urls(
+    s3_keys: List[str],
+    expiration: Optional[int] = None,
+    response_cache_control: Optional[str] = None,
+) -> List[str]:
     """
     Generate multiple pre-signed URLs at once.
     
@@ -246,7 +258,7 @@ def generate_presigned_urls(s3_keys: List[str], expiration: Optional[int] = None
     Returns:
         List of pre-signed URLs in the same order as input keys
     """
-    return [generate_presigned_url(key, expiration) for key in s3_keys]
+    return [generate_presigned_url(key, expiration, response_cache_control) for key in s3_keys]
 
 
 def upload_avatar_to_s3(file_content: bytes, user_id: int, file_extension: str = "jpg") -> str:
@@ -285,6 +297,7 @@ def upload_avatar_to_s3(file_content: bytes, user_id: int, file_extension: str =
             Key=s3_key,
             Body=file_content,
             ContentType=content_type,
+            CacheControl=settings.STORAGE_IMAGE_CACHE_CONTROL,
             Metadata={
                 'user_id': str(user_id),
                 'uploaded_at': datetime.utcnow().isoformat()

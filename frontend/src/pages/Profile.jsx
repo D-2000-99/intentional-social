@@ -5,6 +5,7 @@ import { api } from "../api";
 import imageCompression from "browser-image-compression";
 import PostCard from "../components/PostCard";
 import { sanitizeText, sanitizeUrlParam, validateBio } from "../utils/security";
+import { resolveImageUrl } from "../utils/imageUrls";
 
 export default function Profile() {
     const { username: urlUsername } = useParams();
@@ -113,10 +114,9 @@ export default function Profile() {
     };
 
     // Get avatar URL - prefer avatar_url (user-uploaded) over picture_url (Google)
-    // The backend should return presigned URLs for S3 avatars
     const getAvatarUrl = () => {
         if (profileUser?.avatar_url) {
-            return profileUser.avatar_url;
+            return resolveImageUrl(profileUser.avatar_url);
         }
         return profileUser?.picture_url || null;
     };

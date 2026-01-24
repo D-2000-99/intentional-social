@@ -18,8 +18,8 @@ export default function MyPosts() {
                 if (post.photo_urls && post.photo_urls.length > 0) {
                     console.log(`Post ${post.id} has ${post.photo_urls.length} photos:`, {
                         photo_urls: post.photo_urls,
-                        photo_urls_presigned: post.photo_urls_presigned,
-                        presigned_count: post.photo_urls_presigned?.length || 0
+                        photo_urls_access: post.photo_urls_presigned,
+                        access_count: post.photo_urls_presigned?.length || 0
                     });
                 }
             });

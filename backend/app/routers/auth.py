@@ -19,7 +19,8 @@ from app.core.oauth import (
     verify_google_id_token,
     get_google_user_info,
 )
-from app.core.s3 import validate_image, upload_avatar_to_s3, generate_presigned_url, delete_photo_from_s3
+from app.core.image_urls import build_image_path, is_storage_key
+from app.core.s3 import validate_image, upload_avatar_to_s3, delete_photo_from_s3
 from app.config import settings
 from app.models.user import User
 # MVP TEMPORARY: Registration request model - remove when moving beyond MVP
@@ -324,14 +325,9 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current authenticated user's details"""
     user_out = UserOut.model_validate(current_user)
     
-    # If avatar_url is a storage key, generate presigned URL
-    avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
-    if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
-        try:
-            user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
-        except Exception as e:
-            logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
-            # Keep the S3 key if presigned URL generation fails
+    # If avatar_url is a storage key, return stable image URL
+    if is_storage_key(user_out.avatar_url):
+        user_out.avatar_url = build_image_path(user_out.avatar_url)
     
     return user_out
 
@@ -353,14 +349,9 @@ def get_user_by_username(
     
     user_out = UserOut.model_validate(user)
     
-    # If avatar_url is a storage key, generate presigned URL
-    avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
-    if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
-        try:
-            user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
-        except Exception as e:
-            logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
-            # Keep the S3 key if presigned URL generation fails
+    # If avatar_url is a storage key, return stable image URL
+    if is_storage_key(user_out.avatar_url):
+        user_out.avatar_url = build_image_path(user_out.avatar_url)
     
     return user_out
 
@@ -415,21 +406,17 @@ async def update_user_avatar(
         # Upload new avatar to S3
         s3_key = upload_avatar_to_s3(file_content, current_user.id, file_extension)
         
-        # Generate presigned URL for the avatar
-        avatar_url = generate_presigned_url(s3_key)
-        
         # Update user's avatar_url (store the S3 key, not the presigned URL)
-        # We'll generate presigned URLs when needed
         current_user.avatar_url = s3_key
         db.commit()
         db.refresh(current_user)
         
         logger.info(f"User {current_user.id} updated avatar to {s3_key}")
         
-        # Return user with presigned URL in avatar_url for immediate use
+        # Return user with stable image URL for immediate use
         user_out = UserOut.model_validate(current_user)
-        # Override avatar_url with presigned URL for response
-        user_out.avatar_url = avatar_url
+        # Override avatar_url with stable image URL for response
+        user_out.avatar_url = build_image_path(s3_key)
         return user_out
         
     except HTTPException:
@@ -468,14 +455,10 @@ def update_user_bio(
         
         logger.info(f"User {current_user.id} updated bio")
         
-        # Return user with presigned URL for avatar if needed
+        # Return user with stable image URL for avatar if needed
         user_out = UserOut.model_validate(current_user)
-        avatar_prefix = settings.STORAGE_AVATAR_PREFIX or settings.S3_AVATAR_PREFIX
-        if user_out.avatar_url and user_out.avatar_url.startswith(avatar_prefix):
-            try:
-                user_out.avatar_url = generate_presigned_url(user_out.avatar_url)
-            except Exception as e:
-                logger.warning(f"Failed to generate presigned URL for avatar: {str(e)}")
+        if is_storage_key(user_out.avatar_url):
+            user_out.avatar_url = build_image_path(user_out.avatar_url)
         
         return user_out
         

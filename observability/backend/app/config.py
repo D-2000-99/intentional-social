@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str  # Must be set via environment variable
     SECRET_KEY: str  # Must be set via environment variable (min 32 chars)
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
     # Moderator configuration
     MODERATOR_EMAILS: Optional[str] = None  # Comma-separated list of moderator emails

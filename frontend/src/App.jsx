@@ -7,6 +7,7 @@ import People from "./pages/People";
 import Connections from "./pages/Connections";
 import Profile from "./pages/Profile";
 import { sanitizeText } from "./utils/security";
+import { resolveImageUrl } from "./utils/imageUrls";
 import "./index.css";
 
 const PrivateRoute = ({ children }) => {
@@ -73,7 +74,7 @@ const Layout = ({ children }) => {
     // Get avatar URL
     const getAvatarUrl = () => {
         if (user?.avatar_url) {
-            return user.avatar_url;
+            return resolveImageUrl(user.avatar_url);
         }
         return user?.picture_url || null;
     };

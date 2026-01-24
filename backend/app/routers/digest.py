@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
 from app.core.deps import get_db, get_current_user
-from app.core.s3 import generate_presigned_urls
+from app.core.image_urls import build_image_path
 from app.core.llm import generate_weekly_summary
 from app.core.metrics import digest_requests_total, digest_latency_seconds
 from app.config import settings
@@ -26,7 +26,6 @@ from app.models.tag import Tag
 from app.schemas.post import PostOut
 from app.services.connection_service import ConnectionService
 from app.services.post_service import PostService
-from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/digest", tags=["Digest"])
 
@@ -311,22 +310,12 @@ def get_digest(
         # Use PostService to batch load audience tags (fixes N+1 query problem)
         audience_tags_map = PostService.batch_load_audience_tags(digest_filtered_posts, db)
         
-        # Initialize StorageService (without Redis for now)
-        storage_service = StorageService(redis_client=None)
-        
-        # Convert to PostOut with pre-signed URLs
+        # Convert to PostOut with stable image URLs
         result_posts = []
         posts_with_scores = []  # For weekly summary generation
         
         for post in digest_filtered_posts:
-            # Generate pre-signed URLs for photos
-            photo_urls_presigned = []
-            if post.photo_urls:
-                try:
-                    photo_urls_presigned = storage_service.batch_get_presigned_urls(post.photo_urls)
-                except Exception as e:
-                    logger.error(f"Failed to generate pre-signed URLs for post {post.id}: {str(e)}")
-                    photo_urls_presigned = []
+            photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
             
             # Create PostOut
             post_dict = {
