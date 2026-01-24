@@ -30,6 +30,23 @@ const Layout = ({ children }) => {
     const mainRef = useRef(null);
     
     const isActive = (path) => location.pathname === path;
+    const [feedMode, setFeedMode] = useState("now");
+
+    // Listen for feed mode changes (Now vs Digest) so bell shows only in "Now"
+    useEffect(() => {
+        const handleFeedModeChange = (e) => {
+            setFeedMode(e.detail?.mode ?? "now");
+        };
+        window.addEventListener("feed-mode-change", handleFeedModeChange);
+        return () => window.removeEventListener("feed-mode-change", handleFeedModeChange);
+    }, []);
+
+    // Reset feed mode when leaving Home so we default to "now" next visit
+    useEffect(() => {
+        if (location.pathname !== "/") setFeedMode("now");
+    }, [location.pathname]);
+
+    const showBell = isActive("/") && feedMode === "now";
 
     // Listen for programmatic scroll events
     useEffect(() => {
@@ -143,7 +160,7 @@ const Layout = ({ children }) => {
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Home</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
-                        {isActive("/") && <NotificationBell />}
+                        {showBell && <NotificationBell />}
                         <Link to="/profile" className="user-profile-link">
                             {avatarUrl ? (
                                 <img 

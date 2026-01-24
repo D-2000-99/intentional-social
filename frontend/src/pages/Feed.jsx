@@ -11,6 +11,12 @@ import { Camera, X } from "lucide-react";
 
 export default function Feed() {
     const [mode, setMode] = useState("now"); // "now" or "digest"
+
+    // Notify Layout (navbar) when feed mode changes so bell is shown only in "Now"
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent("feed-mode-change", { detail: { mode } }));
+    }, [mode]);
+
     const [posts, setPosts] = useState([]);
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(true);
