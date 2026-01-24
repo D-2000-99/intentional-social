@@ -152,10 +152,10 @@ def delete_post(
     
     try:
         # Step 1: Delete PostAudienceTag entries (foreign key constraint)
-        db.query(PostAudienceTag).filter(PostAudienceTag.post_id == post_id).delete()
+        db.query(PostAudienceTag).filter(PostAudienceTag.post_id == post_id).delete(synchronize_session=False)
         
         # Step 2: Delete ReportedPost entries for this post
-        db.query(ReportedPost).filter(ReportedPost.post_id == post_id).delete()
+        db.query(ReportedPost).filter(ReportedPost.post_id == post_id).delete(synchronize_session=False)
         
         # Step 3: Delete photos from S3 (if any)
         if post.photo_urls:
@@ -316,37 +316,37 @@ def delete_user(
         # Step 3: Delete PostAudienceTag records (via post.audience_tags)
         # We need to do this before deleting posts
         if post_ids:
-            db.query(PostAudienceTag).filter(PostAudienceTag.post_id.in_(post_ids)).delete()
+            db.query(PostAudienceTag).filter(PostAudienceTag.post_id.in_(post_ids)).delete(synchronize_session=False)
         
         # Step 4: Delete ReportedPost records for user's posts (before deleting posts)
         if post_ids:
-            db.query(ReportedPost).filter(ReportedPost.post_id.in_(post_ids)).delete()
+            db.query(ReportedPost).filter(ReportedPost.post_id.in_(post_ids)).delete(synchronize_session=False)
         
         # Step 5: Delete Comments authored by this user (including comments on other users' posts)
-        db.query(Comment).filter(Comment.author_id == user_id).delete()
+        db.query(Comment).filter(Comment.author_id == user_id).delete(synchronize_session=False)
         
         # Step 6: Delete Post records (cascade will handle comments via post.comments)
-        db.query(Post).filter(Post.author_id == user_id).delete()
+        db.query(Post).filter(Post.author_id == user_id).delete(synchronize_session=False)
         
         # Step 7: Delete UserTag records where user is owner or target
         # UserTag represents tags assigned to users (owner tags target)
         db.query(UserTag).filter(
             or_(UserTag.owner_user_id == user_id, UserTag.target_user_id == user_id)
-        ).delete()
+        ).delete(synchronize_session=False)
         
         # Step 8: Delete Connection records
         db.query(Connection).filter(
             or_(Connection.user_a_id == user_id, Connection.user_b_id == user_id)
-        ).delete()
+        ).delete(synchronize_session=False)
         
         # Step 9: Delete Tag records (tags owned by this user)
-        db.query(Tag).filter(Tag.owner_user_id == user_id).delete()
+        db.query(Tag).filter(Tag.owner_user_id == user_id).delete(synchronize_session=False)
         
         # Step 10: Delete ReportedPost records where user is reporter
-        db.query(ReportedPost).filter(ReportedPost.reported_by_id == user_id).delete()
+        db.query(ReportedPost).filter(ReportedPost.reported_by_id == user_id).delete(synchronize_session=False)
         
         # Step 11: Delete ReportedPost records where user resolved reports (moderator action)
-        db.query(ReportedPost).filter(ReportedPost.resolved_by_id == user_id).delete()
+        db.query(ReportedPost).filter(ReportedPost.resolved_by_id == user_id).delete(synchronize_session=False)
         
         # Step 12: Finally delete User record
         db.delete(user)
