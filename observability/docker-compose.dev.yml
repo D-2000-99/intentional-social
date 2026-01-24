@@ -4,10 +4,11 @@
 #
 # Prerequisites:
 # - Main backend docker-compose-dev.yml must be running first
+# - MAIN_BACKEND_NETWORK in .env: main backend's Docker network (see .env.example)
 # - Set DATABASE_URL in .env to: postgresql://postgres:postgres@db:5432/intentional_social_dev
 #
 # Ports:
-# - Observability Backend: 8002 (avoids conflict with prod backend on 8000 and dev on 8001)
+# - Observability Backend: 8003 (avoids conflict with prod 8000, dev 8001)
 
 services:
   obs-backend-dev:
@@ -18,7 +19,6 @@ services:
       - "127.0.0.1:8003:8001"
     env_file:
       - .env
-    # Connect to the development backend network to access shared database
     networks:
       - main-backend-network
       - observability-network
@@ -34,12 +34,9 @@ services:
   # Build with: cd observability/frontend && npm install && npm run build
 
 networks:
-  # Connect to development backend network (created by main backend docker-compose-dev.yml)
-  # Note: Both prod and dev use same network name if run from same directory
-  # The difference is the DATABASE_URL pointing to different database names
   main-backend-network:
     external: true
-    name: social_100_default
+    name: ${MAIN_BACKEND_NETWORK:-social_100_default}
   observability-network:
     driver: bridge
 

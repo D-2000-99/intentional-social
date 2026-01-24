@@ -38,7 +38,9 @@ To avoid conflicts with the development environment, observability uses differen
 
 ## Network Configuration
 
-When using `docker-compose.prod.yml` or `docker-compose.dev.yml`, the observability backend connects to the main backend's network (`social_100_default`) to access the shared database. The database service name in the network is `db`, so the DATABASE_URL should use `db` as the hostname:
+When using `docker-compose.prod.yml` or `docker-compose.dev.yml`, the observability backend connects to the main backend's network (external) and uses an observability network (created by the compose file). Set **MAIN_BACKEND_NETWORK** in `.env` (see `.env.example`) to your main app's Docker network (e.g. `myapp_default`, `social_100_default`).
+
+The database service name in the main backend network is `db`; use `db` as the hostname in DATABASE_URL:
 
 **For Production (`docker-compose.prod.yml`):**
 ```

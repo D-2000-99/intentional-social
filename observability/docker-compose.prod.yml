@@ -4,10 +4,11 @@
 #
 # Prerequisites:
 # - Main backend docker-compose.yml must be running first
+# - MAIN_BACKEND_NETWORK in .env: main backend's Docker network (see .env.example)
 # - Set DATABASE_URL in .env to: postgresql://postgres:postgres@db:5432/intentional_social
 #
 # Ports:
-# - Observability Backend: 8002 (avoids conflict with prod backend on 8000 and dev on 8001)
+# - Observability Backend: 8002 (avoids conflict with prod backend 8000, dev 8001)
 
 services:
   obs-backend:
@@ -18,7 +19,6 @@ services:
       - "127.0.0.1:8002:8001"
     env_file:
       - .env
-    # Connect to the production backend network to access shared database
     networks:
       - main-backend-network
       - observability-network
@@ -34,10 +34,9 @@ services:
   # Build with: cd observability/frontend && npm install && npm run build
 
 networks:
-  # Connect to production backend network (created by main backend docker-compose.yml)
   main-backend-network:
     external: true
-    name: social_100_default
+    name: ${MAIN_BACKEND_NETWORK:-social_100_default}
   observability-network:
     driver: bridge
 

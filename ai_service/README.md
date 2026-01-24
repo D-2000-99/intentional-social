@@ -19,10 +19,18 @@ This service processes posts from the database and generates AI-powered summarie
 
 ## Configuration
 
-Create a `.env` file with the following variables:
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+**Docker Compose (main backend network):**
+- `MAIN_BACKEND_NETWORK`: Main backend's Docker network (e.g. `myapp_default`, `social_100_default`). Required when using docker-compose.
 
 **Required:**
-- `DATABASE_URL`: PostgreSQL connection string (shared with main backend)
+- `DATABASE_URL`: PostgreSQL connection string (shared with main backend; use hostname `db` when using Docker)
 - `OPENAI_API_KEY`: Your OpenAI API key
 
 **Optional:**
@@ -77,10 +85,12 @@ docker build -t ai-service .
 ### Run with Docker Compose (recommended):
 ```bash
 cd ai_service
+cp .env.example .env   # if not done yet; set MAIN_BACKEND_NETWORK, DATABASE_URL, OPENAI_API_KEY
+# Ensure main backend docker-compose is running first (creates the network)
 docker-compose up
 ```
 
-This will process all pending posts from the current week and exit when complete.
+This will process all pending posts from the current week and exit when complete. The service joins the main backend's Docker network to access the shared database.
 
 ### Run standalone (batch mode - default):
 ```bash

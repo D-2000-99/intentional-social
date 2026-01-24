@@ -19,7 +19,9 @@ docker-compose up -d
 # Then start observability for production
 cd observability
 cp .env.example .env
-# Edit .env - set DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social
+# Edit .env:
+#   - MAIN_BACKEND_NETWORK: main backend's Docker network (e.g. myapp_default)
+#   - DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
@@ -33,7 +35,9 @@ docker-compose -f docker-compose-dev.yml up -d
 # Then start observability for development
 cd observability
 cp .env.example .env
-# Edit .env - set DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social_dev
+# Edit .env:
+#   - MAIN_BACKEND_NETWORK: main backend's Docker network (e.g. myapp_default)
+#   - DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social_dev
 docker-compose -f docker-compose.dev.yml up -d --build
 ```
 
@@ -42,7 +46,12 @@ docker-compose -f docker-compose.dev.yml up -d --build
 - `docker-compose.prod.yml` - For production (connects to prod database)
 - `docker-compose.dev.yml` - For development (connects to dev database)
 
-Both files connect to the main backend's database network. The key difference is the `DATABASE_URL` environment variable pointing to different database names.
+Both files connect to the main backend's Docker network (external, pre-existing) and create an **observability** network for observability services.
+
+- **MAIN_BACKEND_NETWORK** (in `.env`): The main backend's Docker network (typically `{project_dir}_default`, e.g. `social_100_default` or `myapp_default`). Must exist; created by the main app's compose.
+- **observability-network**: Created by these compose files (`driver: bridge`). No config needed.
+
+The key difference between prod and dev is the `DATABASE_URL` pointing to different database names.
 
 ## Build Context
 
@@ -60,35 +69,32 @@ The structure in the container is:
 
 ## Environment Variables
 
-Key environment variables needed in `.env`:
+Key environment variables needed in `.env` (see `.env.example` for a full template):
+
+**Docker network (required for compose, external/main backend only):**
+```env
+MAIN_BACKEND_NETWORK=social_100_default   # or your app's network, e.g. myapp_default
+```
 
 **For Production (`docker-compose.prod.yml`):**
 ```env
-# Database (shared with main backend production)
 DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social
 ```
 
 **For Development (`docker-compose.dev.yml`):**
 ```env
-# Database (shared with main backend development)
 DATABASE_URL=postgresql://postgres:postgres@db:5432/intentional_social_dev
 ```
 
-# Security
+**Security & app config:**
+```env
 SECRET_KEY=your-secret-key
-
-# Moderators
 MODERATOR_EMAILS=moderator1@example.com,moderator2@example.com
-
-# CORS
 OBSERVABILITY_CORS_ORIGINS=http://localhost:5175
-
-# Google OAuth (same as main backend)
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_REDIRECT_URI=http://localhost:8002/auth/google/callback
-
-# AWS S3 (same as main backend, for user deletion)
+# AWS/R2 (same as main backend, for user deletion)
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 S3_BUCKET_NAME=...
@@ -151,14 +157,15 @@ If you see import errors related to the main backend, ensure:
 1. Ensure the appropriate main backend docker-compose is running:
    - Production: `docker-compose up -d` (from project root)
    - Development: `docker-compose -f docker-compose-dev.yml up -d` (from project root)
-2. Check that the network name matches (`social_100_default` by default)
+2. Set `MAIN_BACKEND_NETWORK` in `.env` to your main backend's network (e.g. `myapp_default`; Docker uses `{project_dir}_default`).
 3. Verify DATABASE_URL uses:
    - Correct hostname: `db` (for docker network)
    - Correct database name: `intentional_social` (prod) or `intentional_social_dev` (dev)
 
 ### Network Issues
 
-For shared database setup, ensure both docker-compose instances can communicate:
-- Main backend network should be external and accessible
-- Observability services should be on the shared network
+Only the **main backend** network is external. Ensure:
+
+- **MAIN_BACKEND_NETWORK** in `.env` matches the main backend's Docker network. Use `docker network ls` to see the actual name (typically `{project_dir}_default`).
+- The **observability** network is created automatically by the compose file; no setup needed.
 

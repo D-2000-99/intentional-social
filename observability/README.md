@@ -14,8 +14,9 @@ Separate backend and frontend application for content moderation and user manage
 2. Copy the example environment file and configure it:
    ```bash
    cp .env.example .env
-   # Edit .env with your configuration
+   # Edit .env: MAIN_BACKEND_NETWORK, DATABASE_URL, etc.
    ```
+   - **MAIN_BACKEND_NETWORK**: Your main app's Docker network (e.g. `myapp_default`).
 
 3. Choose the appropriate compose file:
    
@@ -60,8 +61,9 @@ Separate backend and frontend application for content moderation and user manage
    - `SECRET_KEY`: Same as main backend
    - `MODERATOR_EMAILS`: Comma-separated list of moderator email addresses
    - `OBSERVABILITY_CORS_ORIGINS`: CORS allowed origins
+   - `MAIN_BACKEND_NETWORK`: For Docker Compose (main backend's external network)
    - Google OAuth credentials (same as main backend)
-   - AWS S3 credentials (same as main backend, for user deletion)
+   - AWS S3 / R2 credentials (same as main backend, for user deletion)
 
 5. Run the backend:
    ```bash

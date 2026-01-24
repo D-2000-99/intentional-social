@@ -1,16 +1,24 @@
+# AI Service Docker Compose
+# Connects to the main backend's database network to access shared DB.
+# Usage: docker-compose up
+#
+# Prerequisites:
+# - Main backend docker-compose (or docker-compose-dev.yml) must be running first
+# - MAIN_BACKEND_NETWORK in .env: main backend's Docker network (see .env.example)
+# - DATABASE_URL in .env: use hostname "db" (e.g. postgresql://...@db:5432/...)
+
 services:
   ai_service:
     build: .
     env_file:
       - ./.env
-    # Connect to the main backend's database network
-    # This allows using "db" as hostname in DATABASE_URL
     networks:
-      - social_100_default
+      - main-backend-network
     restart: "no"  # Don't restart - exit after batch processing completes
     # No ports exposed - this is a batch processing service
 
 networks:
-  social_100_default:
+  main-backend-network:
     external: true
+    name: ${MAIN_BACKEND_NETWORK:-social_100_default}
 

@@ -173,14 +173,19 @@ STORAGE_PRESIGNED_URL_EXPIRATION=3600
 
 ```bash
 cd ai_service
+cp .env.example .env
+# Edit .env: MAIN_BACKEND_NETWORK (main app's Docker network), DATABASE_URL, OPENAI_API_KEY
+# Ensure main backend docker-compose is running first (creates the network)
 docker-compose up
 ```
 
 This will:
 1. Build the container
-2. Start the database (if not already running)
+2. Join the main backend's Docker network (external; set `MAIN_BACKEND_NETWORK` in `.env`)
 3. Process all pending posts from current week
 4. Exit when complete
+
+The service connects to the main backend's database network. Set `MAIN_BACKEND_NETWORK` in `.env` to your main app's Docker network (e.g. `myapp_default`, `social_100_default`). Use `docker network ls` to see the actual name.
 
 ### Standalone Docker
 
@@ -254,9 +259,14 @@ Potential improvements:
 ## Troubleshooting
 
 ### Service exits immediately
-- Check database connection (`DATABASE_URL`)
+- Check database connection (`DATABASE_URL`; use hostname `db` when using Docker)
 - Verify OpenAI API key is valid
 - Check logs for error messages
+
+### Network / Docker Compose issues
+- Ensure main backend docker-compose is running first (it creates the network)
+- Set `MAIN_BACKEND_NETWORK` in `.env` to your main app's Docker network (typically `{project_dir}_default`)
+- Run `docker network ls` to see available networks
 
 ### Posts not being processed
 - Verify posts exist in current week (Sunday-Saturday)
