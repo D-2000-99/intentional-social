@@ -74,8 +74,12 @@ def send_connection_request(
     
     if existing:
         if existing.status == ConnectionStatus.PENDING:
+            if existing.initiated_by_user_id == current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Connection request already sent",
+                )
             # If they sent us a request, auto-accept it
-            # Since direction doesn't matter, if status is PENDING, we can auto-accept
             existing.status = ConnectionStatus.ACCEPTED
             db.commit()
             logger.info(
@@ -92,6 +96,7 @@ def send_connection_request(
     new_connection = Connection(
         user_a_id=user_a_id,
         user_b_id=user_b_id,
+        initiated_by_user_id=current_user.id,
         status=ConnectionStatus.PENDING,
     )
     db.add(new_connection)
@@ -120,6 +125,7 @@ def get_incoming_requests(
                 Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.PENDING,
+            Connection.initiated_by_user_id != current_user.id,
         )
         .all()
     )
@@ -159,6 +165,7 @@ def get_outgoing_requests(
                 Connection.user_b_id == current_user.id,
             ),
             Connection.status == ConnectionStatus.PENDING,
+            Connection.initiated_by_user_id == current_user.id,
         )
         .all()
     )
@@ -201,6 +208,13 @@ def accept_connection_request(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
+        )
+
+    # Only the recipient (non-initiator) can accept
+    if connection.initiated_by_user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the recipient can accept this request",
         )
     
     if connection.status == ConnectionStatus.ACCEPTED:

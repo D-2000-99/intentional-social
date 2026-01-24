@@ -19,6 +19,7 @@ class Connection(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_a_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     user_b_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    initiated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(
         SQLEnum(ConnectionStatus, native_enum=True, values_callable=lambda x: [e.value for e in x]),
         default=ConnectionStatus.PENDING,
@@ -30,6 +31,7 @@ class Connection(Base):
     # Relationships
     user_a = relationship("User", foreign_keys=[user_a_id], backref="connections_as_a")
     user_b = relationship("User", foreign_keys=[user_b_id], backref="connections_as_b")
+    initiated_by = relationship("User", foreign_keys=[initiated_by_user_id], backref="initiated_connections")
 
     # Constraints
     __table_args__ = (
@@ -37,4 +39,5 @@ class Connection(Base):
         Index('idx_user_a', 'user_a_id'),
         Index('idx_user_b', 'user_b_id'),
         Index('idx_status', 'status'),
+        Index('idx_initiated_by_user', 'initiated_by_user_id'),
     )
