@@ -276,6 +276,13 @@ export const api = {
   createComment: (token, postId, content) =>
     api.request("/comments/", "POST", { post_id: postId, content }, token),
 
+  // Replies
+  getCommentReplies: (token, commentId) =>
+    api.request(`/replies/comment/${commentId}`, "GET", null, token),
+
+  createReply: (token, commentId, content) =>
+    api.request("/replies/", "POST", { comment_id: commentId, content }, token),
+
   reportPost: (token, postId, reason = null) =>
     api.request(`/posts/${postId}/report`, "POST", { reason }, token),
 

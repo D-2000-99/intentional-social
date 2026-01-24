@@ -140,7 +140,8 @@ textarea::placeholder {
 }
 
 .app-layout main {
-  padding-top: 96px; /* Default - will be overridden by JS for dynamic sizing + extra spacing */
+  padding-top: 96px;
+  /* Default - will be overridden by JS for dynamic sizing + extra spacing */
   transition: padding-top 0.2s ease;
 }
 
@@ -198,12 +199,15 @@ nav.nav-visible {
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
 }
 
 .nav-links::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
+  /* Chrome, Safari, Opera */
 }
 
 .nav-links a {
@@ -484,6 +488,13 @@ button:focus-visible,
   border-color: var(--olive-primary);
 }
 
+.photo-upload-button.disabled {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .photo-previews {
   display: flex;
   flex-wrap: wrap;
@@ -672,6 +683,7 @@ button:focus-visible,
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -921,7 +933,8 @@ button:focus-visible,
 
 @media (max-width: 600px) {
   .profile-post-card .delete-post-button {
-    opacity: 1; /* Keep visible on mobile */
+    opacity: 1;
+    /* Keep visible on mobile */
   }
 }
 
@@ -1195,7 +1208,8 @@ button:focus-visible,
   }
 
   .app-layout main {
-    padding-top: 80px; /* Smaller navbar height on mobile + extra spacing */
+    padding-top: 80px;
+    /* Smaller navbar height on mobile + extra spacing */
   }
 
   .app-layout {
@@ -2337,6 +2351,7 @@ button:focus-visible,
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -2441,6 +2456,123 @@ button:focus-visible,
   cursor: not-allowed;
 }
 
+/* Reply Hint */
+.comment-reply-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-placeholder, #8C8C8C);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+}
+
+.comment-main:hover .comment-reply-hint {
+  color: var(--olive-primary, #6B7F3F);
+}
+
+/* Replies Section */
+.replies-section {
+  margin-top: 12px;
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-color, #E5E5E0);
+  animation: slideDown 0.2s ease-out;
+}
+
+.replies-loading {
+  text-align: center;
+  color: var(--text-placeholder, #8C8C8C);
+  font-size: 13px;
+  padding: 12px;
+  font-style: italic;
+}
+
+.replies-list {
+  margin-bottom: 12px;
+}
+
+.reply-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color, #F5F5F5);
+}
+
+.reply-item:last-child {
+  border-bottom: none;
+}
+
+.reply-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.reply-author {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-main, #2C2C2C);
+  font-family: 'Lora', serif;
+}
+
+.reply-date {
+  font-size: 10px;
+  color: var(--text-placeholder, #8C8C8C);
+}
+
+.reply-content {
+  font-size: 13px;
+  color: var(--text-main, #2C2C2C);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.reply-form {
+  margin-top: 12px;
+}
+
+.reply-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #E5E5E0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 50px;
+  margin-bottom: 8px;
+  background-color: var(--surface-color, #FFFFFF);
+  color: var(--text-main, #2C2C2C);
+}
+
+.reply-input:focus {
+  outline: none;
+  border-color: var(--olive-primary, #6B7F3F);
+}
+
+.reply-submit-button {
+  background-color: var(--olive-primary, #6B7F3F);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: inherit;
+}
+
+.reply-submit-button:hover:not(:disabled) {
+  background-color: var(--olive-hover, #5A6B33);
+}
+
+.reply-submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Digest Feature Styles */
 .mode-toggle {
   display: flex;
@@ -2527,12 +2659,15 @@ button:focus-visible,
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
   height: calc(100vh - 200px);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
 }
 
 .digest-scroll-container::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
+  /* Chrome/Safari */
 }
 
 .digest-page {

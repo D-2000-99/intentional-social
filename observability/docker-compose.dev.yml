@@ -10,12 +10,12 @@
 # - Observability Backend: 8002 (avoids conflict with prod backend on 8000 and dev on 8001)
 
 services:
-  obs-backend:
+  obs-backend-dev:
     build:
       context: ../
       dockerfile: observability/backend/Dockerfile
     ports:
-      - "127.0.0.1:8002:8001"
+      - "127.0.0.1:8003:8001"
     env_file:
       - .env
     # Connect to the development backend network to access shared database

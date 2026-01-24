@@ -60,7 +60,7 @@ export default function Feed() {
             useWebWorker: true,
             fileType: file.type,
         };
-        
+
         try {
             const compressedFile = await imageCompression(file, options);
             return compressedFile;
@@ -74,11 +74,15 @@ export default function Feed() {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        // Limit to 5 photos total
-        const maxPhotos = 5;
+        // Limit to 3 photos total per post
+        const maxPhotos = 3;
         const remainingSlots = maxPhotos - selectedPhotos.length;
+        if (remainingSlots <= 0) {
+            alert(`You can only add up to ${maxPhotos} photos per post. Please remove a photo first.`);
+            return;
+        }
         if (files.length > remainingSlots) {
-            alert(`You can only add up to ${maxPhotos} photos. Please select ${remainingSlots} or fewer.`);
+            alert(`You can only add ${remainingSlots} more photo${remainingSlots === 1 ? '' : 's'}. Only the first ${remainingSlots} will be added.`);
             files.splice(remainingSlots);
         }
 
@@ -89,7 +93,7 @@ export default function Feed() {
 
             // Create preview URLs
             const newPreviews = compressedFiles.map(file => URL.createObjectURL(file));
-            
+
             setSelectedPhotos(prev => [...prev, ...compressedFiles]);
             setPhotoPreviews(prev => [...prev, ...newPreviews]);
         } catch (error) {
@@ -107,7 +111,7 @@ export default function Feed() {
         if (photoPreviews[index]) {
             URL.revokeObjectURL(photoPreviews[index]);
         }
-        
+
         setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
         setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
     };
@@ -136,21 +140,21 @@ export default function Feed() {
                 audience.audience_tag_ids,
                 selectedPhotos
             );
-            
+
             // Clear form
             setContent("");
             setAudience({ audience_type: 'all', audience_tag_ids: [] });
-            
+
             // Clear photos and revoke preview URLs
             photoPreviews.forEach(url => URL.revokeObjectURL(url));
             setSelectedPhotos([]);
             setPhotoPreviews([]);
-            
+
             // Reset file input
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
-            
+
             fetchFeed(selectedTagIds); // Refresh feed
         } catch (err) {
             alert(`Failed to post: ${err.message}`);
@@ -184,76 +188,80 @@ export default function Feed() {
                     <FeedFilterBar onFilterChange={setSelectedTagIds} />
 
                     <section className="create-post-card">
-                <div className="create-header">What's on your mind?</div>
-                <form onSubmit={handlePost}>
-                    <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        placeholder="Share a meaningful thought..."
-                        rows="4"
-                        style={{ minHeight: '120px' }}
-                    />
-                    
-                    {/* Photo previews */}
-                    {photoPreviews.length > 0 && (
-                        <div className="photo-previews">
-                            {photoPreviews.map((preview, index) => (
-                                <div key={index} className="photo-preview">
-                                    <img src={preview} alt={`Preview ${index + 1}`} />
-                                    <button
-                                        type="button"
-                                        onClick={() => removePhoto(index)}
-                                        className="remove-photo"
-                                        aria-label={`Remove photo ${index + 1}`}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    
-                    <div className="create-actions">
-                        <div className="action-left">
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={handlePhotoSelect}
-                                style={{ display: "none" }}
-                                id="photo-upload"
+                        <div className="create-header">What's on your mind?</div>
+                        <form onSubmit={handlePost}>
+                            <textarea
+                                value={content}
+                                onChange={(e) => setContent(e.target.value)}
+                                placeholder="Share a meaningful thought..."
+                                rows="4"
+                                style={{ minHeight: '120px' }}
                             />
-                            <label htmlFor="photo-upload" className="photo-upload-button">
-                                📷 Add Photo
-                            </label>
-                            <AudienceSelector onAudienceChange={setAudience} />
-                        </div>
-                        <button type="submit" className="btn-primary" disabled={uploading}>
-                            {uploading ? "Posting..." : "Post"}
-                        </button>
-                    </div>
-                </form>
-            </section>
 
-            <div className="feed-list">
-                {loading ? (
-                    <p className="loading-state">Loading...</p>
-                ) : posts.length === 0 ? (
-                    <div className="empty-state">
-                        <p>Your feed is quiet.</p>
-                        <p>Follow people to see their thoughts here.</p>
+                            {/* Photo previews */}
+                            {photoPreviews.length > 0 && (
+                                <div className="photo-previews">
+                                    {photoPreviews.map((preview, index) => (
+                                        <div key={index} className="photo-preview">
+                                            <img src={preview} alt={`Preview ${index + 1}`} />
+                                            <button
+                                                type="button"
+                                                onClick={() => removePhoto(index)}
+                                                className="remove-photo"
+                                                aria-label={`Remove photo ${index + 1}`}
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="create-actions">
+                                <div className="action-left">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handlePhotoSelect}
+                                        style={{ display: "none" }}
+                                        id="photo-upload"
+                                    />
+                                    <label
+                                        htmlFor="photo-upload"
+                                        className={`photo-upload-button ${selectedPhotos.length >= 3 ? 'disabled' : ''}`}
+                                        onClick={(e) => selectedPhotos.length >= 3 && e.preventDefault()}
+                                    >
+                                        📷 Add Photo
+                                    </label>
+                                    <AudienceSelector onAudienceChange={setAudience} />
+                                </div>
+                                <button type="submit" className="btn-primary" disabled={uploading}>
+                                    {uploading ? "Posting..." : "Post"}
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <div className="feed-list">
+                        {loading ? (
+                            <p className="loading-state">Loading...</p>
+                        ) : posts.length === 0 ? (
+                            <div className="empty-state">
+                                <p>Your feed is quiet.</p>
+                                <p>Follow people to see their thoughts here.</p>
+                            </div>
+                        ) : (
+                            posts.map((post) => (
+                                <PostCard
+                                    key={post.id}
+                                    post={post}
+                                    currentUser={currentUser}
+                                />
+                            ))
+                        )}
                     </div>
-                ) : (
-                    posts.map((post) => (
-                        <PostCard 
-                            key={post.id} 
-                            post={post} 
-                            currentUser={currentUser}
-                        />
-                    ))
-                )}
-            </div>
                 </>
             )}
         </div>

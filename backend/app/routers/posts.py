@@ -109,7 +109,7 @@ async def create_post(
     photo_s3_keys = []
     if photos:
         # Limit number of photos per post (e.g., max 5)
-        max_photos = 5
+        max_photos = 3
         if len(photos) > max_photos:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

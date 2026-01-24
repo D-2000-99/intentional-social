@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.routers import auth, posts, feed, connections, tags, connection_tags, insights, comments, digest
+from app.routers import auth, posts, feed, connections, tags, connection_tags, insights, comments, digest, replies
 from app.config import settings
 from app.core.exceptions import AppException
 from app.core.deps import get_db
@@ -131,6 +131,7 @@ app.include_router(connection_tags.router)
 app.include_router(tags.router)
 app.include_router(insights.router)
 app.include_router(comments.router)
+app.include_router(replies.router)
 
 
 # Global exception handlers
