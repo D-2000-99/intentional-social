@@ -6,6 +6,7 @@ import Feed from "./pages/Feed";
 import People from "./pages/People";
 import Connections from "./pages/Connections";
 import Profile from "./pages/Profile";
+import NotificationBell from "./components/NotificationBell";
 import { sanitizeText } from "./utils/security";
 import { resolveImageUrl } from "./utils/imageUrls";
 import "./index.css";
@@ -22,23 +23,52 @@ const Layout = ({ children }) => {
     const { user } = useAuth();
     const location = useLocation();
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const [isNavbarLocked, setIsNavbarLocked] = useState(false);
     const [lastScrollY, setLastScrollY] = useState(0);
+    const isProgrammaticScrollRef = useRef(false);
     const navRef = useRef(null);
     const mainRef = useRef(null);
     
     const isActive = (path) => location.pathname === path;
 
+    // Listen for programmatic scroll events
+    useEffect(() => {
+        const handleProgrammaticScroll = () => {
+            isProgrammaticScrollRef.current = true;
+            // Reset flag after scroll animation completes
+            setTimeout(() => {
+                isProgrammaticScrollRef.current = false;
+            }, 1000);
+        };
+        
+        window.addEventListener('programmatic-scroll', handleProgrammaticScroll);
+        
+        return () => {
+            window.removeEventListener('programmatic-scroll', handleProgrammaticScroll);
+        };
+    }, []);
+
     useEffect(() => {
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
             
-            // Show navbar when scrolling up, hide when scrolling down
-            if (currentScrollY < lastScrollY) {
-                // Scrolling up
+            // Only unlock navbar on manual scroll (not programmatic)
+            if (isNavbarLocked && !isProgrammaticScrollRef.current) {
+                setIsNavbarLocked(false);
+            }
+            
+            // Show navbar when scrolling up, hide when scrolling down (unless locked)
+            if (!isNavbarLocked) {
+                if (currentScrollY < lastScrollY) {
+                    // Scrolling up
+                    setIsNavbarVisible(true);
+                } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+                    // Scrolling down and past 100px
+                    setIsNavbarVisible(false);
+                }
+            } else {
+                // When locked, always show navbar
                 setIsNavbarVisible(true);
-            } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-                // Scrolling down and past 100px
-                setIsNavbarVisible(false);
             }
             
             setLastScrollY(currentScrollY);
@@ -46,7 +76,27 @@ const Layout = ({ children }) => {
 
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
-    }, [lastScrollY]);
+    }, [lastScrollY, isNavbarLocked]);
+
+    // Listen for navbar lock/unlock events
+    useEffect(() => {
+        const handleLockNavbar = () => {
+            setIsNavbarLocked(true);
+            setIsNavbarVisible(true);
+        };
+        
+        const handleUnlockNavbar = () => {
+            setIsNavbarLocked(false);
+        };
+        
+        window.addEventListener('lock-navbar', handleLockNavbar);
+        window.addEventListener('unlock-navbar', handleUnlockNavbar);
+        
+        return () => {
+            window.removeEventListener('lock-navbar', handleLockNavbar);
+            window.removeEventListener('unlock-navbar', handleUnlockNavbar);
+        };
+    }, []);
 
     // Dynamically set main padding based on navbar height + extra spacing
     useEffect(() => {
@@ -86,10 +136,14 @@ const Layout = ({ children }) => {
         <div className="app-layout">
             <nav ref={navRef} className={isNavbarVisible ? 'nav-visible' : 'nav-hidden'}>
                 <div className="nav-content">
-                    <Link to="/" className="nav-brand serif-font">Intentional Social</Link>
+                    <Link to="/" className="nav-brand serif-font">
+                        <span className="nav-brand-full">Intentional Social</span>
+                        <span className="nav-brand-short">Intentional</span>
+                    </Link>
                     <div className="nav-links">
                         <Link to="/" className={isActive("/") ? "active" : ""}>Home</Link>
                         <Link to="/connections" className={isActive("/connections") ? "active" : ""}>Connections</Link>
+                        <NotificationBell />
                         <Link to="/profile" className="user-profile-link">
                             {avatarUrl ? (
                                 <img 

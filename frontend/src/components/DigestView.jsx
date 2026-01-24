@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { sanitizeText, sanitizeUrlParam } from "../utils/security";
 import { resolveImageUrl } from "../utils/imageUrls";
+import { Calendar } from "lucide-react";
 
 export default function DigestView({ onSwitchToNow }) {
     const [digestData, setDigestData] = useState(null);
@@ -157,7 +158,7 @@ export default function DigestView({ onSwitchToNow }) {
                 <div className="digest-empty-state">
                     <div className="digest-page">
                         <div className="digest-empty-content">
-                            <p className="digest-empty-icon">☕</p>
+                            <div className="digest-empty-icon"><Calendar size={48} /></div>
                             <h3 className="digest-empty-title">A Quiet Week</h3>
                             <p className="digest-empty-text">
                                 No updates from your {selectedTagId === null ? "connections" : tags.find(t => t.id === selectedTagId)?.name || "connections"} circle this week.

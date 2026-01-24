@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import TagPill from './TagPill';
+import { Eye } from 'lucide-react';
 
 export default function AudienceSelector({ onAudienceChange }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -65,7 +66,7 @@ export default function AudienceSelector({ onAudienceChange }) {
                 aria-label="Select audience"
                 aria-expanded={isOpen}
             >
-                <span className="audience-pill-icon">👁️</span>
+                <span className="audience-pill-icon"><Eye size={14} /></span>
                 <span className="audience-pill-text">{getAudienceSummary()}</span>
             </button>
 

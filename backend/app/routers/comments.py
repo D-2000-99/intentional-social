@@ -9,6 +9,7 @@ from app.models.post import Post
 from app.models.user import User
 from app.models.connection import Connection, ConnectionStatus
 from app.schemas.comment import CommentCreate, CommentOut
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
 
@@ -74,6 +75,11 @@ def create_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+    
+    # Create notification for post author
+    NotificationService.create_comment_notification(
+        db, comment_data.post_id, current_user.id
+    )
     
     # Load author relationship
     new_comment = (
@@ -158,6 +164,12 @@ def get_post_comments(
             if is_connected_to_comment_author:
                 visible_comments.append(comment)
     
+    # Get notification summary for comments
+    comment_ids = [c.id for c in visible_comments]
+    comment_notification_summary = NotificationService.get_comment_notification_summary(
+        db, current_user.id, comment_ids
+    )
+    
     # Convert to CommentOut
     result = []
     for comment in visible_comments:
@@ -167,7 +179,8 @@ def get_post_comments(
             author_id=comment.author_id,
             content=comment.content,
             created_at=comment.created_at,
-            author=comment.author
+            author=comment.author,
+            has_unread_reply=comment_notification_summary.get(comment.id, False)
         ))
     
     return result

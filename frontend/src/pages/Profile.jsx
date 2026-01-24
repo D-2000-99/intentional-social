@@ -6,6 +6,7 @@ import imageCompression from "browser-image-compression";
 import PostCard from "../components/PostCard";
 import { sanitizeText, sanitizeUrlParam, validateBio } from "../utils/security";
 import { resolveImageUrl } from "../utils/imageUrls";
+import { Settings, Camera, Pencil } from "lucide-react";
 
 export default function Profile() {
     const { username: urlUsername } = useParams();
@@ -21,6 +22,7 @@ export default function Profile() {
     const [isEditingBio, setIsEditingBio] = useState(false);
     const [bioValue, setBioValue] = useState("");
     const [updatingBio, setUpdatingBio] = useState(false);
+    const [notificationSummary, setNotificationSummary] = useState({});
     const fileInputRef = useRef(null);
     const bioTextareaRef = useRef(null);
 
@@ -89,6 +91,23 @@ export default function Profile() {
             fetchPosts();
         }
     }, [profileUser, token]);
+
+    // Fetch notification summary when posts change
+    useEffect(() => {
+        const fetchNotificationSummary = async () => {
+            if (!token || posts.length === 0) return;
+            
+            try {
+                const postIds = posts.map(p => p.id);
+                const summary = await api.getPostNotificationSummary(token, postIds);
+                setNotificationSummary(summary.summary || {});
+            } catch (err) {
+                console.error("Failed to fetch notification summary", err);
+            }
+        };
+        
+        fetchNotificationSummary();
+    }, [posts, token]);
 
     const handleDeletePost = async (postId) => {
         // Confirm deletion
@@ -217,7 +236,7 @@ export default function Profile() {
                         onClick={() => setShowSettingsModal(true)}
                         aria-label="Settings"
                     >
-                        ⚙️
+                        <Settings size={20} />
                     </button>
                 )}
                 <div className="profile-header">
@@ -254,7 +273,7 @@ export default function Profile() {
                                         className="avatar-upload-button"
                                         title="Change profile picture"
                                     >
-                                        {uploading ? "..." : "📷"}
+                                        {uploading ? "..." : <Camera size={18} />}
                                     </label>
                                 </div>
                             )}
@@ -311,7 +330,7 @@ export default function Profile() {
                                             className="profile-bio-edit-button"
                                             aria-label="Edit bio"
                                         >
-                                            ✏️
+                                            <Pencil size={16} />
                                         </button>
                                     </div>
                                 ) : (
@@ -370,13 +389,15 @@ export default function Profile() {
                 ) : (
                     <div className="feed-list">
                         {posts.map((post) => (
-                            <PostCard 
-                                key={post.id} 
-                                post={post} 
-                                currentUser={currentUser}
-                                showDeleteButton={isOwnProfile}
-                                onPostDeleted={isOwnProfile ? handleDeletePost : undefined}
-                            />
+                            <div key={post.id} id={`post-${post.id}`}>
+                                <PostCard 
+                                    post={post} 
+                                    currentUser={currentUser}
+                                    showDeleteButton={isOwnProfile}
+                                    onPostDeleted={isOwnProfile ? handleDeletePost : undefined}
+                                    notificationSummary={notificationSummary[post.id]}
+                                />
+                            </div>
                         ))}
                     </div>
                 )}

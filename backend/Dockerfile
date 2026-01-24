@@ -22,5 +22,5 @@ EXPOSE 8000
 # Run migrations and start server
 # Optimized for 1 CPU core: single worker with higher concurrency limit
 # Note: In production, you may want to run migrations separately
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --limit-concurrency 100 --backlog 2048"]
+CMD ["sh", "-c", "python migrations/run_migration.py 2>/dev/null || true && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --limit-concurrency 100 --backlog 2048"]
 

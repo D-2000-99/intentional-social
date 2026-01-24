@@ -10,6 +10,7 @@ from app.models.post_audience_tag import PostAudienceTag
 from app.models.comment import Comment
 from app.models.reply import Reply
 from app.models.reported_post import ReportedPost
+from app.models.notification import Notification
 # MVP TEMPORARY: Registration request model - remove when moving beyond MVP
 from app.models.registration_request import RegistrationRequest
 

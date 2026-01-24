@@ -306,4 +306,20 @@ export const api = {
       token
     );
   },
+
+  // Notifications
+  getRecentNotifications: (token, limitPosts = 50) =>
+    api.request(`/notifications/recent?limit_posts=${limitPosts}`, "GET", null, token),
+
+  getPostNotificationSummary: (token, postIds) =>
+    api.request("/notifications/post-summary", "POST", { post_ids: postIds }, token),
+
+  markPostNotificationsRead: (token, postId) =>
+    api.request(`/notifications/posts/${postId}/read`, "POST", null, token),
+
+  markCommentNotificationsRead: (token, commentId) =>
+    api.request(`/notifications/comments/${commentId}/read`, "POST", null, token),
+
+  clearRecentNotifications: (token) =>
+    api.request("/notifications/recent/clear", "POST", null, token),
 };

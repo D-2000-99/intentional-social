@@ -4,8 +4,9 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import PhotoGallery from "./PhotoGallery";
 import { sanitizeText, sanitizeUrlParam, validateContent } from "../utils/security";
+import { MoreVertical, ChevronDown, ChevronRight } from "lucide-react";
 
-export default function PostCard({ post, currentUser, onPostDeleted, showDeleteButton = false }) {
+export default function PostCard({ post, currentUser, onPostDeleted, showDeleteButton = false, notificationSummary }) {
     const [commentsExpanded, setCommentsExpanded] = useState(false);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
@@ -14,6 +15,7 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [reporting, setReporting] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
+    const commentsSectionRef = useRef(null);
     const { token } = useAuth();
 
     // Reply state
@@ -22,6 +24,70 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [loadingReplies, setLoadingReplies] = useState({});
     const [replyContent, setReplyContent] = useState("");
     const [submittingReply, setSubmittingReply] = useState(false);
+    
+    // Track if this is an auto-expand (from bell click) vs manual expand
+    const isAutoExpandingRef = useRef(false);
+    
+    // Local notification state (updated from prop and when clearing)
+    const [localNotificationSummary, setLocalNotificationSummary] = useState(
+        notificationSummary || { has_unread_comments: false, has_unread_replies: false }
+    );
+
+    // Update local notification summary when prop changes
+    useEffect(() => {
+        if (notificationSummary) {
+            setLocalNotificationSummary(notificationSummary);
+        }
+    }, [notificationSummary]);
+
+    // Listen for auto-expand events (when jumping to post via bell)
+    useEffect(() => {
+        const handleAutoExpand = async (event) => {
+            if (event.detail.postId === post.id) {
+                // Auto-expand comments if there are unread notifications
+                if (localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) {
+                    if (!commentsExpanded) {
+                        isAutoExpandingRef.current = true;
+                        
+                        // Fetch comments if needed
+                        if (comments.length === 0) {
+                            setLoadingComments(true);
+                            try {
+                                const data = await api.getPostComments(token, post.id);
+                                setComments(data);
+                                
+                                // Auto-expand replies for comments with unread replies
+                                setTimeout(() => {
+                                    data.forEach(comment => {
+                                        if (comment.has_unread_reply) {
+                                            handleToggleReplies(comment.id);
+                                        }
+                                    });
+                                }, 100);
+                            } catch (err) {
+                                console.error("Failed to fetch comments", err);
+                            } finally {
+                                setLoadingComments(false);
+                            }
+                        }
+                        
+                        setCommentsExpanded(true);
+                        
+                        // Reset flag after a delay
+                        setTimeout(() => {
+                            isAutoExpandingRef.current = false;
+                        }, 500);
+                    }
+                }
+            }
+        };
+        
+        window.addEventListener('auto-expand-comments', handleAutoExpand);
+        
+        return () => {
+            window.removeEventListener('auto-expand-comments', handleAutoExpand);
+        };
+    }, [post.id, localNotificationSummary, commentsExpanded, comments.length, token]);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -40,21 +106,75 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         };
     }, [menuOpen]);
 
+    const markPostNotificationsRead = async () => {
+        if (!token || !localNotificationSummary.has_unread_comments && !localNotificationSummary.has_unread_replies) {
+            return;
+        }
+        
+        try {
+            await api.markPostNotificationsRead(token, post.id);
+            setLocalNotificationSummary({ has_unread_comments: false, has_unread_replies: false });
+            // Trigger refresh event for bell
+            window.dispatchEvent(new CustomEvent('notification-refresh'));
+        } catch (err) {
+            console.error("Failed to mark post notifications as read", err);
+        }
+    };
+
+    const markCommentNotificationsRead = async (commentId) => {
+        if (!token) return;
+        
+        try {
+            await api.markCommentNotificationsRead(token, commentId);
+            // Update comment in local state
+            setComments(prev => prev.map(c => 
+                c.id === commentId ? { ...c, has_unread_reply: false } : c
+            ));
+            // Trigger refresh event for bell
+            window.dispatchEvent(new CustomEvent('notification-refresh'));
+        } catch (err) {
+            console.error("Failed to mark comment notifications as read", err);
+        }
+    };
+
     const handleToggleComments = async () => {
-        if (!commentsExpanded && comments.length === 0) {
+        const willExpand = !commentsExpanded;
+        const isAutoExpand = isAutoExpandingRef.current;
+        
+        if (willExpand && comments.length === 0) {
             // Fetch comments when expanding for the first time
             setLoadingComments(true);
             try {
                 const data = await api.getPostComments(token, post.id);
                 setComments(data);
+                
+                // After loading comments, auto-expand replies for comments with unread replies
+                // Only do this on auto-expand (from bell click), not manual expand
+                if (isAutoExpand) {
+                    setTimeout(() => {
+                        data.forEach(comment => {
+                            if (comment.has_unread_reply) {
+                                handleToggleReplies(comment.id);
+                            }
+                        });
+                    }, 100);
+                }
             } catch (err) {
                 console.error("Failed to fetch comments", err);
-                alert(`Failed to load comments: ${err.message}`);
+                if (!isAutoExpand) {
+                    alert(`Failed to load comments: ${err.message}`);
+                }
             } finally {
                 setLoadingComments(false);
             }
         }
-        setCommentsExpanded(!commentsExpanded);
+        
+        setCommentsExpanded(willExpand);
+        
+        // Clear notifications when manually opening comments (not on auto-expand)
+        if (willExpand && !isAutoExpand) {
+            markPostNotificationsRead();
+        }
     };
 
     const handleSubmitComment = async (e) => {
@@ -119,6 +239,12 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                     setLoadingReplies(prev => ({ ...prev, [commentId]: false }));
                 }
             }
+            
+            // Clear comment notifications when opening replies
+            const comment = comments.find(c => c.id === commentId);
+            if (comment && comment.has_unread_reply) {
+                markCommentNotificationsRead(commentId);
+            }
         }
     };
 
@@ -179,7 +305,7 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                                 title="More options"
                                 aria-label="More options"
                             >
-                                ⋮
+                                <MoreVertical size={20} />
                             </button>
                             {menuOpen && (
                                 <div className="kebab-menu-popover">
@@ -242,13 +368,16 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             )}
 
             {/* Comments section */}
-            <div className="comments-section">
+            <div className="comments-section" ref={commentsSectionRef}>
                 <div
                     className="comments-toggle-button"
                     onClick={handleToggleComments}
                     aria-expanded={commentsExpanded}
                 >
                     {commentsExpanded ? "▼" : "▶"} Comments {comments.length > 0 && `(${comments.length})`}
+                    {(localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) && (
+                        <span className="notification-dot"></span>
+                    )}
                 </div>
 
                 {commentsExpanded && (
@@ -286,9 +415,12 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                                                         {sanitizeText(comment.content || '')}
                                                     </div>
                                                     <div className="comment-reply-hint">
-                                                        {expandedReplyCommentId === comment.id ? '▼' : '▶'} Reply
+                                                        {expandedReplyCommentId === comment.id ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Reply
                                                         {repliesByCommentId[comment.id]?.length > 0 &&
                                                             ` (${repliesByCommentId[comment.id].length})`}
+                                                        {comment.has_unread_reply && (
+                                                            <span className="notification-dot"></span>
+                                                        )}
                                                     </div>
                                                 </div>
 

@@ -32,6 +32,7 @@ class CommentOut(BaseModel):
     content: str
     created_at: datetime
     author: AuthorOut
+    has_unread_reply: Optional[bool] = False  # Whether user has unread replies on this comment
 
     class Config:
         from_attributes = True

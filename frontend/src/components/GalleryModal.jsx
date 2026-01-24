@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function GalleryModal({ photos, initialIndex = 0, onClose }) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -54,7 +55,7 @@ export default function GalleryModal({ photos, initialIndex = 0, onClose }) {
                     onClick={onClose}
                     aria-label="Close gallery"
                 >
-                    ×
+                    <X size={28} />
                 </button>
 
                 {photos.length > 1 && (
@@ -64,14 +65,14 @@ export default function GalleryModal({ photos, initialIndex = 0, onClose }) {
                             onClick={handlePrevious}
                             aria-label="Previous photo"
                         >
-                            ‹
+                            <ChevronLeft size={36} />
                         </button>
                         <button
                             className="gallery-modal-nav gallery-modal-next"
                             onClick={handleNext}
                             aria-label="Next photo"
                         >
-                            ›
+                            <ChevronRight size={36} />
                         </button>
                     </>
                 )}

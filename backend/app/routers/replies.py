@@ -10,6 +10,7 @@ from app.models.post import Post
 from app.models.user import User
 from app.models.connection import Connection, ConnectionStatus
 from app.schemas.reply import ReplyCreate, ReplyOut
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/replies", tags=["Replies"])
 
@@ -94,6 +95,11 @@ def create_reply(
     db.add(new_reply)
     db.commit()
     db.refresh(new_reply)
+    
+    # Create notifications for comment author, post author, and previous reply participants
+    NotificationService.create_reply_notifications(
+        db, reply_data.comment_id, current_user.id
+    )
     
     # Load author relationship
     new_reply = (

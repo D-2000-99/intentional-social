@@ -6,6 +6,7 @@ import TagPill from "../components/TagPill";
 import TagPicker from "../components/TagPicker";
 import ConnectionInsights from "../components/ConnectionInsights";
 import { sanitizeText, sanitizeUrlParam, validateSearchQuery } from "../utils/security";
+import { MoreVertical } from "lucide-react";
 
 export default function Connections() {
     // Tab state
@@ -289,7 +290,7 @@ export default function Connections() {
                         }}
                         aria-label="Connection options"
                     >
-                        ⋮
+                        <MoreVertical size={20} />
                     </button>
                     {openKebabId === conn.id && (
                         <div className="kebab-menu-popover">

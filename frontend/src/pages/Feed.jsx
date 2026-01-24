@@ -7,6 +7,7 @@ import AudienceSelector from "../components/AudienceSelector";
 import PostCard from "../components/PostCard";
 import DigestView from "../components/DigestView";
 import { validateContent } from "../utils/security";
+import { Camera, X } from "lucide-react";
 
 export default function Feed() {
     const [mode, setMode] = useState("now"); // "now" or "digest"
@@ -18,18 +19,19 @@ export default function Feed() {
     const [selectedPhotos, setSelectedPhotos] = useState([]);
     const [photoPreviews, setPhotoPreviews] = useState([]);
     const [uploading, setUploading] = useState(false);
+    const [notificationSummary, setNotificationSummary] = useState({});
     const fileInputRef = useRef(null);
     const { token, user: currentUser } = useAuth();
 
-    const fetchFeed = useCallback(async (tagIds = []) => {
+    const fetchFeed = useCallback(async (tagIds = [], skip = 0) => {
         setLoading(true);
         try {
             let data;
             if (tagIds.length > 0) {
                 const tagIdsParam = tagIds.join(',');
-                data = await api.request(`/feed?tag_ids=${tagIdsParam}`, "GET", null, token);
+                data = await api.request(`/feed?tag_ids=${tagIdsParam}&skip=${skip}&limit=20`, "GET", null, token);
             } else {
-                data = await api.getFeed(token);
+                data = await api.getFeed(token, skip, 20);
             }
             // Debug: log posts with photos
             data.forEach(post => {
@@ -41,7 +43,11 @@ export default function Feed() {
                     });
                 }
             });
-            setPosts(data);
+            if (skip === 0) {
+                setPosts(data);
+            } else {
+                setPosts(prev => [...prev, ...data]);
+            }
         } catch (err) {
             console.error("Failed to fetch feed", err);
         } finally {
@@ -49,9 +55,135 @@ export default function Feed() {
         }
     }, [token]);
 
+    const loadMore = useCallback(async () => {
+        if (loading) return;
+        await fetchFeed(selectedTagIds, posts.length);
+    }, [fetchFeed, selectedTagIds, posts.length, loading]);
+
+    const jumpToPost = useCallback(async (postId, onComplete) => {
+        // Lock navbar
+        window.dispatchEvent(new CustomEvent('lock-navbar'));
+        
+        // Mark scroll as programmatic
+        window.dispatchEvent(new CustomEvent('programmatic-scroll'));
+        
+        // Check if post has notifications (to auto-expand comments)
+        const postSummary = notificationSummary[postId];
+        const hasNotifications = postSummary && (postSummary.has_unread_comments || postSummary.has_unread_replies);
+        
+        // Helper function to scroll and auto-expand
+        const scrollAndExpand = () => {
+            const element = document.getElementById(`post-${postId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                
+                // After scroll animation completes, auto-expand comments if there are notifications
+                if (hasNotifications) {
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('auto-expand-comments', {
+                            detail: { postId }
+                        }));
+                    }, 800); // Wait for scroll animation to complete
+                }
+            }
+            if (onComplete) onComplete();
+        };
+        
+        // Check if post is already loaded
+        const existingPost = posts.find(p => p.id === postId);
+        if (existingPost) {
+            // Post is already loaded, scroll to it
+            setTimeout(scrollAndExpand, 100);
+            return;
+        }
+        
+        // Post not loaded, need to fetch more
+        // Load up to 50 posts total
+        const maxPosts = 50;
+        let currentSkip = posts.length;
+        let found = false;
+        
+        while (currentSkip < maxPosts && !found) {
+            try {
+                let data;
+                if (selectedTagIds.length > 0) {
+                    const tagIdsParam = selectedTagIds.join(',');
+                    data = await api.request(`/feed?tag_ids=${tagIdsParam}&skip=${currentSkip}&limit=20`, "GET", null, token);
+                } else {
+                    data = await api.getFeed(token, currentSkip, 20);
+                }
+                
+                if (data.length === 0) break; // No more posts
+                
+                // Add new posts
+                setPosts(prev => {
+                    const newPosts = [...prev, ...data];
+                    return newPosts;
+                });
+                
+                // Check if target post is in this batch
+                const targetPost = data.find(p => p.id === postId);
+                if (targetPost) {
+                    found = true;
+                    // Wait for DOM update and notification summary to be fetched, then scroll
+                    setTimeout(() => {
+                        // Re-check notification summary after posts are loaded
+                        const updatedSummary = notificationSummary[postId];
+                        const updatedHasNotifications = updatedSummary && (updatedSummary.has_unread_comments || updatedSummary.has_unread_replies);
+                        
+                        scrollAndExpand();
+                    }, 300);
+                    break;
+                }
+                
+                currentSkip += data.length;
+            } catch (err) {
+                console.error("Failed to load more posts", err);
+                if (onComplete) onComplete();
+                break;
+            }
+        }
+        
+        if (!found) {
+            console.warn(`Post ${postId} not found in recent 50 posts`);
+            if (onComplete) onComplete();
+        }
+    }, [posts, selectedTagIds, token, notificationSummary]);
+
     useEffect(() => {
         fetchFeed(selectedTagIds);
     }, [fetchFeed, selectedTagIds]);
+
+    // Fetch notification summary when posts change
+    useEffect(() => {
+        const fetchNotificationSummary = async () => {
+            if (!token || posts.length === 0) return;
+            
+            try {
+                const postIds = posts.map(p => p.id);
+                const summary = await api.getPostNotificationSummary(token, postIds);
+                setNotificationSummary(summary.summary || {});
+            } catch (err) {
+                console.error("Failed to fetch notification summary", err);
+            }
+        };
+        
+        fetchNotificationSummary();
+    }, [posts, token]);
+
+    // Listen for jump-to-post events
+    useEffect(() => {
+        const handleJumpToPost = (event) => {
+            const { postId, onComplete } = event.detail;
+            jumpToPost(postId, onComplete);
+        };
+        
+        window.addEventListener('jump-to-post', handleJumpToPost);
+        
+        return () => {
+            window.removeEventListener('jump-to-post', handleJumpToPost);
+        };
+    }, [jumpToPost]);
 
     const compressImage = async (file) => {
         const options = {
@@ -210,7 +342,7 @@ export default function Feed() {
                                                 className="remove-photo"
                                                 aria-label={`Remove photo ${index + 1}`}
                                             >
-                                                ×
+                                                <X size={16} />
                                             </button>
                                         </div>
                                     ))}
@@ -233,7 +365,8 @@ export default function Feed() {
                                         className={`photo-upload-button ${selectedPhotos.length >= 3 ? 'disabled' : ''}`}
                                         onClick={(e) => selectedPhotos.length >= 3 && e.preventDefault()}
                                     >
-                                        📷 Add Photo
+                                        <Camera size={16} />
+                                        Add Photo
                                     </label>
                                     <AudienceSelector onAudienceChange={setAudience} />
                                 </div>
@@ -254,11 +387,13 @@ export default function Feed() {
                             </div>
                         ) : (
                             posts.map((post) => (
-                                <PostCard
-                                    key={post.id}
-                                    post={post}
-                                    currentUser={currentUser}
-                                />
+                                <div key={post.id} id={`post-${post.id}`}>
+                                    <PostCard
+                                        post={post}
+                                        currentUser={currentUser}
+                                        notificationSummary={notificationSummary[post.id]}
+                                    />
+                                </div>
                             ))
                         )}
                     </div>
