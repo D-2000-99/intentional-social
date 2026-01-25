@@ -25,7 +25,6 @@ class PostOut(BaseModel):
     audience_type: str
     photo_urls: list[str] = []  # List of S3 keys
     photo_urls_presigned: list[str] = []  # Stable image URLs (backend redirect)
-    link_preview: Optional[dict] = None  # Link preview metadata
     created_at: datetime
     author: AuthorOut  # Include author details
     audience_tags: List[TagOut] = []  # Tags used for audience filtering

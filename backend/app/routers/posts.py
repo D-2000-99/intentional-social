@@ -238,7 +238,6 @@ async def create_post(
         audience_type=new_post.audience_type,
         photo_urls=new_post.photo_urls or [],
         photo_urls_presigned=photo_urls_presigned,
-        link_preview=new_post.link_preview,
         created_at=new_post.created_at,
         author=new_post.author,
         audience_tags=audience_tags_map.get(new_post.id, [])
@@ -274,7 +273,6 @@ def get_my_posts(
             "audience_type": post.audience_type,
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
-            "link_preview": post.link_preview,
             "created_at": post.created_at,
             "author": post.author,
             "audience_tags": audience_tags_map.get(post.id, [])
@@ -322,7 +320,6 @@ def get_user_posts(
             "audience_type": post.audience_type,
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
-            "link_preview": post.link_preview,
             "created_at": post.created_at,
             "author": post.author,
             "audience_tags": audience_tags_map.get(post.id, [])

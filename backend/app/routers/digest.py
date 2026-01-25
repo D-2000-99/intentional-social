@@ -325,7 +325,6 @@ def get_digest(
                 "audience_type": post.audience_type,
                 "photo_urls": post.photo_urls or [],
                 "photo_urls_presigned": photo_urls_presigned,
-                "link_preview": post.link_preview,
                 "created_at": post.created_at,
                 "author": post.author,
                 "audience_tags": audience_tags_map.get(post.id, []),
