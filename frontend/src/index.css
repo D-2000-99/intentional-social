@@ -520,6 +520,7 @@ button:focus-visible,
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-small);
 }
 
 .action-left {
@@ -527,6 +528,17 @@ button:focus-visible,
   gap: var(--spacing-small);
   font-size: 13px;
   color: var(--text-subtle);
+  align-items: center;
+}
+
+/* Ensure Post button in create-actions matches the height of other buttons */
+.create-actions .btn-primary {
+  padding: 8px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  line-height: 1.4;
 }
 
 .post-actions {
@@ -553,7 +565,10 @@ button:focus-visible,
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  line-height: 1.4;
+  height: auto;
 }
 
 .photo-upload-button:hover {
@@ -2388,10 +2403,13 @@ button:focus-visible,
   font-size: 13px;
   color: var(--text-main);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-family: inherit;
+  line-height: 1.4;
+  height: auto;
 }
 
 .audience-pill:hover {
@@ -2732,6 +2750,11 @@ button:focus-visible,
   cursor: pointer;
   transition: color 0.2s;
   font-family: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  touch-action: manipulation;
 }
 
 .emoji-reaction-button:hover {
@@ -2749,6 +2772,7 @@ button:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 6px 10px;
   min-width: 36px;
   background: var(--surface-color, #F1EDE4);
@@ -2758,6 +2782,11 @@ button:focus-visible,
   transition: all 0.2s;
   font-family: inherit;
   font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  touch-action: manipulation;
 }
 
 .reaction-emoji-button:hover {
@@ -2779,6 +2808,12 @@ button:focus-visible,
 
 .reaction-emoji {
   font-size: 18px;
+  line-height: 1;
+}
+
+.reaction-count {
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
 }
 

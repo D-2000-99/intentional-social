@@ -21,6 +21,9 @@ COPY app/ ./app/
 # Set Python path
 ENV PYTHONPATH=/app
 
-# Default command: run batch processing to process all pending posts and exit
-CMD ["python", "-m", "app.main", "--batch", "--no-continuous"]
+# Default command: run processing based on PROCESSING_MODE env var
+# Defaults to batch mode if PROCESSING_MODE is not set
+# Set PROCESSING_MODE=async for immediate parallel processing
+# Set PROCESSING_MODE=batch for cost-effective batch API processing
+CMD ["sh", "-c", "if [ \"$PROCESSING_MODE\" = \"async\" ]; then python -m app.main --async --no-continuous; else python -m app.main --batch --no-continuous; fi"]
 

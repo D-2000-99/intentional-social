@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Service configuration
     LOG_LEVEL: str = "INFO"
     PROCESS_BATCH_SIZE: int = 1  # For now, process one at a time
+    ASYNC_BATCH_SIZE: int = 5  # Number of posts to process in parallel for async mode
     
     # Image processing
     MAX_IMAGE_SIZE_MB: int = 20  # Maximum image size to process

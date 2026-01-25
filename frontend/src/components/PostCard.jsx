@@ -6,6 +6,9 @@ import PhotoGallery from "./PhotoGallery";
 import { sanitizeText, sanitizeUrlParam, validateContent } from "../utils/security";
 import { MoreVertical, ChevronDown, ChevronRight, MessageCircle, Smile } from "lucide-react";
 
+// Configuration: Long press duration in milliseconds to show reactions modal
+const LONG_PRESS_DURATION_MS = 350;
+
 export default function PostCard({ post, currentUser, onPostDeleted, showDeleteButton = false, notificationSummary }) {
     const [commentsExpanded, setCommentsExpanded] = useState(false);
     const [comments, setComments] = useState([]);
@@ -321,25 +324,86 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         }
     };
 
-    const handleReactIconMouseDown = () => {
+    const handleReactIconMouseDown = (e) => {
+        e.preventDefault(); // Prevent text selection
+        // Start long press timer - modal will open after LONG_PRESS_DURATION_MS while still holding
         longPressTimerRef.current = setTimeout(() => {
             handleReactIconLongPress();
-        }, 500); // 500ms for long press
+            longPressTimerRef.current = null; // Clear ref after firing
+        }, LONG_PRESS_DURATION_MS);
     };
 
-    const handleReactIconMouseUp = () => {
+    const handleReactIconMouseUp = (e) => {
+        // Only cancel timer if it hasn't fired yet (user released before LONG_PRESS_DURATION_MS)
+        // If timer already fired, modal is open, so don't prevent click
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
             longPressTimerRef.current = null;
+        }
+        // If modal is showing, prevent the click from opening emoji picker
+        if (showingReactors) {
+            e.preventDefault();
+            e.stopPropagation();
         }
     };
 
     const handleReactIconMouseLeave = () => {
+        // Cancel long press if mouse leaves before timeout
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
             longPressTimerRef.current = null;
         }
     };
+
+    const handleReactIconTouchStart = (e) => {
+        e.preventDefault(); // Prevent text selection and default touch behavior
+        // Start long press timer - modal will open after LONG_PRESS_DURATION_MS while still holding
+        longPressTimerRef.current = setTimeout(() => {
+            handleReactIconLongPress();
+            longPressTimerRef.current = null; // Clear ref after firing
+        }, LONG_PRESS_DURATION_MS);
+    };
+
+    const handleReactIconTouchEnd = (e) => {
+        // Only cancel timer if it hasn't fired yet (user released before LONG_PRESS_DURATION_MS)
+        // If timer already fired, modal is open
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+        // If modal is showing, prevent the touch end from triggering click
+        if (showingReactors) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
+    const handleReactIconTouchCancel = (e) => {
+        // Cancel long press if touch is cancelled
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    };
+
+    // Group reactions by emoji for display
+    const groupedReactions = reactions.reduce((acc, reaction) => {
+        const emoji = reaction.emoji;
+        if (!acc[emoji]) {
+            acc[emoji] = {
+                emoji,
+                count: 0,
+                userReacted: false,
+                reactions: []
+            };
+        }
+        acc[emoji].count++;
+        acc[emoji].reactions.push(reaction);
+        if (reaction.user_id === currentUser?.id) {
+            acc[emoji].userReacted = true;
+        }
+        return acc;
+    }, {});
 
     // Popular emojis for quick selection
     const popularEmojis = ['👍', '❤️', '😊', '😂', '😮', '😢', '🙏', '🔥'];
@@ -460,30 +524,41 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                     <div className="emoji-reaction-container" ref={emojiPickerRef}>
                         <button
                             className="emoji-reaction-button"
-                            onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
+                            onClick={() => {
+                                // Only open picker if long press didn't trigger
+                                if (!showingReactors) {
+                                    setEmojiPickerOpen(!emojiPickerOpen);
+                                }
+                            }}
                             onMouseDown={handleReactIconMouseDown}
                             onMouseUp={handleReactIconMouseUp}
                             onMouseLeave={handleReactIconMouseLeave}
-                            onTouchStart={handleReactIconMouseDown}
-                            onTouchEnd={handleReactIconMouseUp}
+                            onTouchStart={handleReactIconTouchStart}
+                            onTouchEnd={handleReactIconTouchEnd}
+                            onTouchCancel={handleReactIconTouchCancel}
                             title="React with emoji (hold to see who reacted)"
                         >
                             <Smile size={18} />
                         </button>
 
-                        {/* Display individual reactions */}
-                        {reactions.length > 0 && (
+                        {/* Display grouped reactions with counts */}
+                        {Object.keys(groupedReactions).length > 0 && (
                             <div className="reactions-display">
-                                {reactions.map((reaction) => {
-                                    const isOwnReaction = reaction.user_id === currentUser?.id;
+                                {Object.values(groupedReactions).map((group) => {
+                                    const isOwnReaction = group.userReacted;
+                                    // Find the user's reaction in this group
+                                    const userReaction = group.reactions.find(r => r.user_id === currentUser?.id);
                                     return (
                                         <button
-                                            key={reaction.id}
+                                            key={group.emoji}
                                             className={`reaction-emoji-button ${isOwnReaction ? 'user-reacted' : ''}`}
-                                            onClick={() => handleReactionClick(reaction)}
-                                            title={isOwnReaction ? `Your reaction - click to remove` : `${reaction.user?.username || 'Someone'} reacted`}
+                                            onClick={() => userReaction ? handleReactionClick(userReaction) : handleEmojiClick(group.emoji)}
+                                            title={isOwnReaction ? `Your reaction (${group.count} total) - click to remove` : `${group.count} ${group.emoji}`}
                                         >
-                                            <span className="reaction-emoji">{reaction.emoji}</span>
+                                            <span className="reaction-emoji">{group.emoji}</span>
+                                            {group.count > 1 && (
+                                                <span className="reaction-count">{group.count}</span>
+                                            )}
                                         </button>
                                     );
                                 })}

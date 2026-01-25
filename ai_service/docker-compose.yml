@@ -12,9 +12,14 @@ services:
     build: .
     env_file:
       - ./.env
+    environment:
+      # PROCESSING_MODE: "batch" (default) or "async"
+      # - batch: Uses OpenAI Batch API (cost-effective, delayed results)
+      # - async: Uses parallel normal API calls (immediate results, configurable batch size)
+      - PROCESSING_MODE=${PROCESSING_MODE:-batch}
     networks:
       - main-backend-network
-    restart: "no"  # Don't restart - exit after batch processing completes
+    restart: "no"  # Don't restart - exit after processing completes
     # No ports exposed - this is a batch processing service
 
 networks:
