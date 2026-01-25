@@ -4,6 +4,8 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import PhotoGallery from "./PhotoGallery";
 import { sanitizeText, sanitizeUrlParam, validateContent } from "../utils/security";
+import { extractUrls, isMusicPlatformUrl, fetchLinkPreview } from "../utils/linkPreview";
+import { linkifyText } from "../utils/textUtils";
 import { MoreVertical, ChevronDown, ChevronRight, MessageCircle, Smile } from "lucide-react";
 
 // Configuration: Long press duration in milliseconds to show reactions modal
@@ -36,6 +38,14 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [loadingReactors, setLoadingReactors] = useState(false);
     const emojiPickerRef = useRef(null);
     const longPressTimerRef = useRef(null);
+    
+    // Comment count state
+    const [commentCount, setCommentCount] = useState(0);
+    
+    // Link preview state - support multiple previews
+    const [linkPreviews, setLinkPreviews] = useState([]);
+    const [loadingLinkPreview, setLoadingLinkPreview] = useState(false);
+    const [failedMusicUrls, setFailedMusicUrls] = useState([]); // Track failed music URLs to show them
     
     // Local notification state (updated from prop and when clearing)
     const [localNotificationSummary, setLocalNotificationSummary] = useState(
@@ -100,6 +110,81 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         fetchReactions();
     }, [post.id, token]);
 
+    // Fetch comment count when component mounts
+    useEffect(() => {
+        const fetchCommentCount = async () => {
+            if (!token) return;
+            try {
+                const data = await api.getPostCommentCount(token, post.id);
+                setCommentCount(data.count || 0);
+            } catch (err) {
+                console.error("Failed to fetch comment count", err);
+                // Don't show error to user, just leave count at 0
+            }
+        };
+        fetchCommentCount();
+    }, [post.id, token]);
+
+    // Fetch link previews when component mounts
+    useEffect(() => {
+        const fetchPreviews = async () => {
+            if (!post.content) return;
+            
+            const urls = extractUrls(post.content);
+            if (urls.length === 0) return;
+            
+            setLoadingLinkPreview(true);
+            setFailedMusicUrls([]); // Reset failed URLs
+            try {
+                const previews = [];
+                const failedUrls = [];
+                const maxPreviews = 3;
+                
+                // Separate music platform URLs and other URLs
+                const musicUrls = urls.filter(url => isMusicPlatformUrl(url));
+                const otherUrls = urls.filter(url => !isMusicPlatformUrl(url));
+                
+                // Prioritize music platform URLs, then other URLs
+                const urlsToFetch = [...musicUrls, ...otherUrls].slice(0, maxPreviews);
+                
+                // Fetch previews for all URLs (up to max)
+                for (const url of urlsToFetch) {
+                    try {
+                        const preview = await fetchLinkPreview(url);
+                        if (preview) {
+                            previews.push(preview);
+                            // Stop if we've reached the max
+                            if (previews.length >= maxPreviews) {
+                                break;
+                            }
+                        } else {
+                            // If preview is null and it's a music URL, track it as failed
+                            if (isMusicPlatformUrl(url)) {
+                                failedUrls.push(url);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`Failed to fetch preview for ${url}:`, err);
+                        // If it's a music URL and failed, track it to show the URL
+                        if (isMusicPlatformUrl(url)) {
+                            failedUrls.push(url);
+                        }
+                        // Continue with next URL even if one fails
+                    }
+                }
+                
+                setLinkPreviews(previews);
+                setFailedMusicUrls(failedUrls);
+            } catch (err) {
+                console.warn("Failed to fetch link previews:", err);
+            } finally {
+                setLoadingLinkPreview(false);
+            }
+        };
+        
+        fetchPreviews();
+    }, [post.content]);
+
     // Cleanup long press timer on unmount
     useEffect(() => {
         return () => {
@@ -149,6 +234,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             try {
                 const data = await api.getPostComments(token, post.id);
                 setComments(data);
+                // Update comment count to match loaded comments
+                setCommentCount(data.length);
             } catch (err) {
                 console.error("Failed to fetch comments", err);
                 alert(`Failed to load comments: ${err.message}`);
@@ -180,6 +267,7 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         try {
             const newComment = await api.createComment(token, post.id, validation.sanitized);
             setComments([...comments, newComment]);
+            setCommentCount(prev => prev + 1); // Update comment count
             setCommentContent("");
         } catch (err) {
             console.error("Failed to create comment", err);
@@ -475,10 +563,118 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                 </div>
             </div>
 
-            {post.content && (
-                <div className="post-content">
-                    {sanitizeText(post.content).split('\n').map((paragraph, idx) => (
-                        <p key={idx}>{paragraph}</p>
+            {post.content && (() => {
+                const content = sanitizeText(post.content);
+                const urls = extractUrls(content);
+                
+                // Only hide music platform URLs that successfully fetched previews
+                // Keep failed music URLs visible
+                const musicUrls = urls.filter(url => isMusicPlatformUrl(url));
+                const successfulMusicUrls = linkPreviews
+                    .filter(preview => preview.url && isMusicPlatformUrl(preview.url))
+                    .map(preview => preview.url);
+                
+                // Remove only successful music URLs, keep failed ones
+                const musicUrlsToHide = musicUrls.filter(url => successfulMusicUrls.includes(url));
+                const contentWithoutMusicUrls = musicUrlsToHide.reduce((text, url) => {
+                    // Remove successful music platform URL from text
+                    return text.replace(url, '').trim();
+                }, content);
+                
+                // Check if content is only successful music URLs (after removing them, only whitespace remains)
+                // But account for failed music URLs and other content
+                const remainingContent = contentWithoutMusicUrls.trim();
+                const hasFailedMusicUrls = failedMusicUrls.length > 0;
+                const isOnlySuccessfulMusicUrls = musicUrlsToHide.length > 0 && 
+                    remainingContent.length === 0 && 
+                    !hasFailedMusicUrls &&
+                    urls.filter(url => !isMusicPlatformUrl(url)).length === 0;
+                
+                // If only successful music URLs, don't show content. Otherwise show content.
+                if (isOnlySuccessfulMusicUrls) {
+                    return null; // Hide content if it's only successful music URLs
+                }
+                
+                // Show content with only successful music URLs removed
+                // Failed music URLs and other URLs will be visible and clickable
+                return (
+                    <div className="post-content">
+                        {contentWithoutMusicUrls.split('\n').filter(p => p.trim()).map((paragraph, idx) => {
+                            const linkified = linkifyText(paragraph);
+                            return (
+                                <p key={idx}>
+                                    {linkified.map((part, partIdx) => {
+                                        if (typeof part === 'string') {
+                                            return <span key={partIdx}>{part}</span>;
+                                        } else if (part.type === 'link') {
+                                            return (
+                                                <a
+                                                    key={partIdx}
+                                                    href={part.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="post-content-link"
+                                                >
+                                                    {part.text}
+                                                </a>
+                                            );
+                                        }
+                                        return null;
+                                    })}
+                                </p>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
+
+            {/* Display link previews */}
+            {linkPreviews.length > 0 && (
+                <div className="link-previews-container">
+                    {linkPreviews.map((linkPreview, idx) => (
+                        <div 
+                            key={idx}
+                            className={`link-preview-container link-preview-${linkPreview.provider?.toLowerCase().replace(/\s+/g, '-') || 'default'}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (linkPreview.url) {
+                                    window.open(linkPreview.url, '_blank', 'noopener,noreferrer');
+                                }
+                            }}
+                        >
+                            {linkPreview.thumbnail_url && (
+                                <div className="link-preview-image">
+                                    <img 
+                                        src={linkPreview.thumbnail_url} 
+                                        alt={linkPreview.title || 'Link preview'}
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            <div className="link-preview-content">
+                                <div className="link-preview-provider">
+                                    {linkPreview.provider || 'Link'}
+                                </div>
+                                {linkPreview.title && (
+                                    <div className="link-preview-title">
+                                        {sanitizeText(linkPreview.title)}
+                                    </div>
+                                )}
+                                {linkPreview.description && (
+                                    <div className="link-preview-description">
+                                        {sanitizeText(linkPreview.description)}
+                                    </div>
+                                )}
+                                {linkPreview.author_name && (
+                                    <div className="link-preview-author">
+                                        {sanitizeText(linkPreview.author_name)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}
@@ -512,8 +708,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                         title="Comments"
                     >
                         <MessageCircle size={18} />
-                        {comments.length > 0 && (
-                            <span className="comments-count">{comments.length}</span>
+                        {commentCount > 0 && (
+                            <span className="comments-count">{commentCount}</span>
                         )}
                         {(localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) && (
                             <span className="notification-dot"></span>

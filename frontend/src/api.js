@@ -281,6 +281,9 @@ export const api = {
   getPostComments: (token, postId) =>
     api.request(`/comments/posts/${postId}`, "GET", null, token),
 
+  getPostCommentCount: (token, postId) =>
+    api.request(`/comments/posts/${postId}/count`, "GET", null, token),
+
   createComment: (token, postId, content) =>
     api.request("/comments/", "POST", { post_id: postId, content }, token),
 

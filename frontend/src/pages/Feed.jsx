@@ -244,7 +244,7 @@ export default function Feed() {
         // Validate and sanitize post content if provided
         let sanitizedContent = '';
         if (content.trim()) {
-            const validation = validateContent(content, 10000); // Max 10000 chars for posts
+            const validation = validateContent(content, 1000); // Max 1000 chars for posts
             if (!validation.isValid) {
                 alert(validation.error || 'Invalid post content');
                 return;
@@ -317,7 +317,16 @@ export default function Feed() {
                                 placeholder="Share a meaningful thought..."
                                 rows="4"
                                 style={{ minHeight: '120px' }}
+                                maxLength={1000}
                             />
+                            <div className="character-count" style={{ 
+                                textAlign: 'right', 
+                                fontSize: '12px', 
+                                color: content.length > 1000 ? '#A85C4F' : 'var(--text-subtle)',
+                                marginTop: '4px'
+                            }}>
+                                {content.length}/1000
+                            </div>
 
                             {/* Photo previews */}
                             {photoPreviews.length > 0 && (

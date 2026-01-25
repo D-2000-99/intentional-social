@@ -1044,6 +1044,184 @@ button:focus-visible,
   margin-bottom: 12px;
 }
 
+.post-content-link {
+  color: var(--olive-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.post-content-link:hover {
+  color: var(--olive-dark);
+  text-decoration: none;
+}
+
+/* Link Preview Styles */
+.link-previews-container {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link-preview-container {
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--paper-color);
+  display: flex;
+  flex-direction: row;
+  max-width: 100%;
+}
+
+.link-preview-container:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Apple Music - Gradient background */
+.link-preview-container.link-preview-apple-music {
+  background: linear-gradient(135deg, #FF4E6B 0%, #FF0436 100%);
+  border-color: #FF0436;
+  color: white;
+}
+
+.link-preview-container.link-preview-apple-music:hover {
+  border-color: #FF4E6B;
+  box-shadow: 0 2px 8px rgba(255, 4, 54, 0.3);
+}
+
+/* Spotify - Green background */
+.link-preview-container.link-preview-spotify {
+  background-color: #1DB954;
+  border-color: #1DB954;
+  color: white;
+}
+
+.link-preview-container.link-preview-spotify:hover {
+  border-color: #1ed760;
+  box-shadow: 0 2px 8px rgba(29, 185, 84, 0.3);
+}
+
+/* YouTube Music - Red background */
+.link-preview-container.link-preview-youtube-music,
+.link-preview-container.link-preview-youtube {
+  background-color: #FF0000;
+  border-color: #FF0000;
+  color: white;
+}
+
+.link-preview-container.link-preview-youtube-music:hover,
+.link-preview-container.link-preview-youtube:hover {
+  border-color: #ff3333;
+  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.3);
+}
+
+.link-preview-image {
+  flex-shrink: 0;
+  width: 200px;
+  height: 200px;
+  background-color: var(--surface-color);
+  overflow: hidden;
+}
+
+.link-preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.link-preview-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0; /* Allows text truncation */
+  color: white;
+}
+
+/* Platform-specific text colors override white for non-colored platforms */
+.link-preview-container:not(.link-preview-apple-music):not(.link-preview-spotify):not(.link-preview-youtube-music):not(.link-preview-youtube) .link-preview-content {
+  color: var(--text-main);
+}
+
+.link-preview-provider {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+/* Override provider color for non-colored platforms */
+.link-preview-container:not(.link-preview-apple-music):not(.link-preview-spotify):not(.link-preview-youtube-music):not(.link-preview-youtube) .link-preview-provider {
+  color: var(--text-subtle);
+}
+
+.link-preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 6px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Override title color for non-colored platforms */
+.link-preview-container:not(.link-preview-apple-music):not(.link-preview-spotify):not(.link-preview-youtube-music):not(.link-preview-youtube) .link-preview-title {
+  color: var(--text-main);
+}
+
+.link-preview-description {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Override description color for non-colored platforms */
+.link-preview-container:not(.link-preview-apple-music):not(.link-preview-spotify):not(.link-preview-youtube-music):not(.link-preview-youtube) .link-preview-description {
+  color: var(--text-subtle);
+}
+
+.link-preview-author {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: auto;
+}
+
+/* Override author color for non-colored platforms */
+.link-preview-container:not(.link-preview-apple-music):not(.link-preview-spotify):not(.link-preview-youtube-music):not(.link-preview-youtube) .link-preview-author {
+  color: var(--text-subtle);
+}
+
+/* Responsive: Stack on mobile */
+@media (max-width: 600px) {
+  .link-preview-container {
+    flex-direction: column;
+  }
+
+  .link-preview-image {
+    width: 100%;
+    height: 200px;
+  }
+  
+  .link-previews-container {
+    gap: 10px;
+  }
+}
+
 .empty-state {
   text-align: center;
   color: #8C8C8C;

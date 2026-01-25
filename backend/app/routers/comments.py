@@ -184,3 +184,59 @@ def get_post_comments(
         ))
     
     return result
+
+
+@router.get("/posts/{post_id}/count")
+def get_post_comment_count(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get the count of visible comments for a post.
+    Uses the same visibility rules as get_post_comments.
+    """
+    # Verify post exists
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    # Check if current user can see the post (must be connected to post author)
+    if post.author_id != current_user.id:
+        if not are_connected(db, current_user.id, post.author_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view comments on posts from your connections"
+            )
+    
+    # Get all comments for this post
+    all_comments = (
+        db.query(Comment)
+        .filter(Comment.post_id == post_id)
+        .all()
+    )
+    
+    # Count visible comments based on mutual connection rules
+    is_post_author = (post.author_id == current_user.id)
+    is_connected_to_post_author = is_post_author or are_connected(db, current_user.id, post.author_id)
+    
+    count = 0
+    for comment in all_comments:
+        # Post author can always see all comments
+        if is_post_author:
+            count += 1
+        # Comment author can always see their own comment
+        elif comment.author_id == current_user.id:
+            count += 1
+        else:
+            # For other users: can only see comment if they are connected to both
+            # the post author AND the comment author (mutual connection)
+            if is_connected_to_post_author:
+                is_connected_to_comment_author = are_connected(db, current_user.id, comment.author_id)
+                if is_connected_to_comment_author:
+                    count += 1
+    
+    return {"count": count}

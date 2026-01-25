@@ -41,6 +41,14 @@ async def create_post(
     - photos: One or more image files (optional)
     - client_timestamp: ISO format timestamp from client system (optional, falls back to server time)
     """
+    # Validate content length (max 1000 characters)
+    MAX_CONTENT_LENGTH = 1000
+    if len(content) > MAX_CONTENT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Post content cannot exceed {MAX_CONTENT_LENGTH} characters"
+        )
+    
     # Parse client timestamp or use server time as fallback
     if client_timestamp:
         try:
@@ -230,6 +238,7 @@ async def create_post(
         audience_type=new_post.audience_type,
         photo_urls=new_post.photo_urls or [],
         photo_urls_presigned=photo_urls_presigned,
+        link_preview=new_post.link_preview,
         created_at=new_post.created_at,
         author=new_post.author,
         audience_tags=audience_tags_map.get(new_post.id, [])
@@ -265,6 +274,7 @@ def get_my_posts(
             "audience_type": post.audience_type,
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
+            "link_preview": post.link_preview,
             "created_at": post.created_at,
             "author": post.author,
             "audience_tags": audience_tags_map.get(post.id, [])
@@ -312,6 +322,7 @@ def get_user_posts(
             "audience_type": post.audience_type,
             "photo_urls": post.photo_urls or [],
             "photo_urls_presigned": photo_urls_presigned,
+            "link_preview": post.link_preview,
             "created_at": post.created_at,
             "author": post.author,
             "audience_tags": audience_tags_map.get(post.id, [])
