@@ -28,6 +28,14 @@ export const api = {
       const url = `${API_URL}${endpoint}`;
       const response = await fetch(url, config);
 
+      // Handle 204 No Content (DELETE requests often return this)
+      if (response.status === 204) {
+        if (!response.ok) {
+          throw new Error(`Server error (${response.status})`);
+        }
+        return null;
+      }
+
       // Parse response body as JSON (our API always returns JSON)
       // Clone response first so we can try both JSON and text if needed
       const clonedResponse = response.clone();
@@ -282,6 +290,22 @@ export const api = {
 
   createReply: (token, commentId, content) =>
     api.request("/replies/", "POST", { comment_id: commentId, content }, token),
+
+  // Reactions
+  getPostReactions: (token, postId) =>
+    api.request(`/reactions/posts/${postId}`, "GET", null, token),
+
+  createOrUpdateReaction: (token, postId, emoji) =>
+    api.request(`/reactions/posts/${postId}`, "POST", { emoji }, token),
+
+  removeReaction: (token, postId) =>
+    api.request(`/reactions/posts/${postId}`, "DELETE", null, token),
+
+  getEmojiReactors: (token, postId, emoji) =>
+    api.request(`/reactions/posts/${postId}/emoji/${encodeURIComponent(emoji)}/reactors`, "GET", null, token),
+
+  getAllReactors: (token, postId) =>
+    api.request(`/reactions/posts/${postId}/reactors`, "GET", null, token),
 
   reportPost: (token, postId, reason = null) =>
     api.request(`/posts/${postId}/report`, "POST", { reason }, token),

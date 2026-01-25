@@ -19,6 +19,9 @@ from app.models.post import Post  # noqa
 from app.models.tag import Tag  # noqa
 from app.models.user_tag import UserTag  # noqa
 from app.models.post_audience_tag import PostAudienceTag  # noqa
+from app.models.comment import Comment  # noqa
+from app.models.reply import Reply  # noqa
+from app.models.reaction import Reaction  # noqa
 
 # Alembic Config object
 config = context.config

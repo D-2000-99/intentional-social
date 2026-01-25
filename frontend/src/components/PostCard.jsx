@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import PhotoGallery from "./PhotoGallery";
 import { sanitizeText, sanitizeUrlParam, validateContent } from "../utils/security";
-import { MoreVertical, ChevronDown, ChevronRight } from "lucide-react";
+import { MoreVertical, ChevronDown, ChevronRight, MessageCircle, Smile } from "lucide-react";
 
 export default function PostCard({ post, currentUser, onPostDeleted, showDeleteButton = false, notificationSummary }) {
     const [commentsExpanded, setCommentsExpanded] = useState(false);
@@ -24,6 +24,15 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const [loadingReplies, setLoadingReplies] = useState({});
     const [replyContent, setReplyContent] = useState("");
     const [submittingReply, setSubmittingReply] = useState(false);
+    
+    // Reaction state
+    const [reactions, setReactions] = useState([]); // Array of individual reactions
+    const [loadingReactions, setLoadingReactions] = useState(false);
+    const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+    const [showingReactors, setShowingReactors] = useState(null); // Array of {user: {}, emoji: string}
+    const [loadingReactors, setLoadingReactors] = useState(false);
+    const emojiPickerRef = useRef(null);
+    const longPressTimerRef = useRef(null);
     
     // Local notification state (updated from prop and when clearing)
     const [localNotificationSummary, setLocalNotificationSummary] = useState(
@@ -53,6 +62,49 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [menuOpen]);
+
+    // Close emoji picker when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+                setEmojiPickerOpen(false);
+            }
+        };
+
+        if (emojiPickerOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [emojiPickerOpen]);
+
+    // Fetch reactions when component mounts
+    useEffect(() => {
+        const fetchReactions = async () => {
+            if (!token) return;
+            setLoadingReactions(true);
+            try {
+                const data = await api.getPostReactions(token, post.id);
+                setReactions(data || []);
+            } catch (err) {
+                console.error("Failed to fetch reactions", err);
+            } finally {
+                setLoadingReactions(false);
+            }
+        };
+        fetchReactions();
+    }, [post.id, token]);
+
+    // Cleanup long press timer on unmount
+    useEffect(() => {
+        return () => {
+            if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+            }
+        };
+    }, []);
 
     const markPostNotificationsRead = async () => {
         if (!token || !localNotificationSummary.has_unread_comments && !localNotificationSummary.has_unread_replies) {
@@ -207,6 +259,91 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         }
     };
 
+    // Reaction handlers
+    const handleEmojiClick = async (emoji) => {
+        if (!token) return;
+        
+        try {
+            // Check if user already has a reaction
+            const existingReaction = reactions.find(r => r.user_id === currentUser?.id);
+            
+            if (existingReaction) {
+                // If clicking on their own reaction, remove it
+                if (existingReaction.emoji === emoji) {
+                    await api.removeReaction(token, post.id);
+                } else {
+                    // Update to new emoji
+                    await api.createOrUpdateReaction(token, post.id, emoji);
+                }
+            } else {
+                // Create new reaction
+                await api.createOrUpdateReaction(token, post.id, emoji);
+            }
+            
+            // Refresh reactions
+            const data = await api.getPostReactions(token, post.id);
+            setReactions(data || []);
+            setEmojiPickerOpen(false);
+        } catch (err) {
+            console.error("Failed to handle reaction", err);
+            alert(`Failed to react: ${err.message}`);
+        }
+    };
+
+    const handleReactionClick = async (reaction) => {
+        if (!token) return;
+        
+        // If clicking on own reaction, remove it
+        if (reaction.user_id === currentUser?.id) {
+            try {
+                await api.removeReaction(token, post.id);
+                // Refresh reactions
+                const data = await api.getPostReactions(token, post.id);
+                setReactions(data || []);
+            } catch (err) {
+                console.error("Failed to remove reaction", err);
+                alert(`Failed to remove reaction: ${err.message}`);
+            }
+        }
+    };
+
+    const handleReactIconLongPress = async () => {
+        if (!token) return;
+        
+        setLoadingReactors(true);
+        try {
+            const data = await api.getAllReactors(token, post.id);
+            setShowingReactors(data || []);
+        } catch (err) {
+            console.error("Failed to fetch reactors", err);
+        } finally {
+            setLoadingReactors(false);
+        }
+    };
+
+    const handleReactIconMouseDown = () => {
+        longPressTimerRef.current = setTimeout(() => {
+            handleReactIconLongPress();
+        }, 500); // 500ms for long press
+    };
+
+    const handleReactIconMouseUp = () => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    };
+
+    const handleReactIconMouseLeave = () => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    };
+
+    // Popular emojis for quick selection
+    const popularEmojis = ['👍', '❤️', '😊', '😂', '😮', '😢', '🙏', '🔥'];
+
     return (
         <article className="post-card">
             <div className="post-meta">
@@ -300,17 +437,113 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
                 </div>
             )}
 
-            {/* Comments section */}
+            {/* Comments and Reactions section */}
             <div className="comments-section" ref={commentsSectionRef}>
-                <div
-                    className="comments-toggle-button"
-                    onClick={handleToggleComments}
-                    aria-expanded={commentsExpanded}
-                >
-                    {commentsExpanded ? "▼" : "▶"} Comments {comments.length > 0 && `(${comments.length})`}
-                    {(localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) && (
-                        <span className="notification-dot"></span>
-                    )}
+                <div className="comments-reactions-row">
+                    {/* Comments button with speech bubble icon */}
+                    <button
+                        className="comments-toggle-button-icon"
+                        onClick={handleToggleComments}
+                        aria-expanded={commentsExpanded}
+                        title="Comments"
+                    >
+                        <MessageCircle size={18} />
+                        {comments.length > 0 && (
+                            <span className="comments-count">{comments.length}</span>
+                        )}
+                        {(localNotificationSummary.has_unread_comments || localNotificationSummary.has_unread_replies) && (
+                            <span className="notification-dot"></span>
+                        )}
+                    </button>
+
+                    {/* Emoji reaction button */}
+                    <div className="emoji-reaction-container" ref={emojiPickerRef}>
+                        <button
+                            className="emoji-reaction-button"
+                            onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
+                            onMouseDown={handleReactIconMouseDown}
+                            onMouseUp={handleReactIconMouseUp}
+                            onMouseLeave={handleReactIconMouseLeave}
+                            onTouchStart={handleReactIconMouseDown}
+                            onTouchEnd={handleReactIconMouseUp}
+                            title="React with emoji (hold to see who reacted)"
+                        >
+                            <Smile size={18} />
+                        </button>
+
+                        {/* Display individual reactions */}
+                        {reactions.length > 0 && (
+                            <div className="reactions-display">
+                                {reactions.map((reaction) => {
+                                    const isOwnReaction = reaction.user_id === currentUser?.id;
+                                    return (
+                                        <button
+                                            key={reaction.id}
+                                            className={`reaction-emoji-button ${isOwnReaction ? 'user-reacted' : ''}`}
+                                            onClick={() => handleReactionClick(reaction)}
+                                            title={isOwnReaction ? `Your reaction - click to remove` : `${reaction.user?.username || 'Someone'} reacted`}
+                                        >
+                                            <span className="reaction-emoji">{reaction.emoji}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Emoji picker popup */}
+                        {emojiPickerOpen && (
+                            <div className="emoji-picker-popup">
+                                <div className="emoji-picker-grid">
+                                    {popularEmojis.map((emoji) => (
+                                        <button
+                                            key={emoji}
+                                            className="emoji-picker-item"
+                                            onClick={() => handleEmojiClick(emoji)}
+                                            title={emoji}
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Reactors modal (shown on long press of react icon) */}
+                        {showingReactors !== null && (
+                            <div className="reactors-modal-overlay" onClick={() => setShowingReactors(null)}>
+                                <div className="reactors-modal" onClick={(e) => e.stopPropagation()}>
+                                    <div className="reactors-modal-header">
+                                        <span className="reactors-modal-title">Reactions</span>
+                                        <button
+                                            className="reactors-modal-close"
+                                            onClick={() => setShowingReactors(null)}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                    {loadingReactors ? (
+                                        <div className="reactors-loading">Loading...</div>
+                                    ) : showingReactors.length > 0 ? (
+                                        <div className="reactors-list">
+                                            {showingReactors.map((item, index) => (
+                                                <div key={index} className="reactor-item">
+                                                    <span className="reactor-emoji">{item.emoji}</span>
+                                                    <span className="reactor-name">
+                                                        @{item.user.username}
+                                                        {item.user.display_name && (
+                                                            <span className="reactor-display-name"> ({item.user.display_name})</span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="reactors-empty">No mutual connections have reacted</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {commentsExpanded && (

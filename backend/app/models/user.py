@@ -24,6 +24,7 @@ class User(Base):
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
     replies = relationship("Reply", back_populates="author", cascade="all, delete-orphan")
+    reactions = relationship("Reaction", back_populates="user", cascade="all, delete-orphan")
     
     def get_display_name(self) -> str:
         """Get display name, preferring user override over Google full_name."""

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Free Scroll Focus Feed</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #F7F4ED;
+  --surface: #F1EDE4;
+  --paper: #EFE9DE;
+  --text: #2A2722;
+  --muted: #7B776E;
+  --shadow-soft: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-focus: 0 6px 18px rgba(0,0,0,0.12);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  font-family: Inter, sans-serif;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.main {
+  max-width: 680px;
+  margin: auto;
+  padding: 24px;
+}
+
+.post {
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 24px;
+  margin-bottom: 32px;
+  position: relative;
+  box-shadow: var(--shadow-soft);
+  opacity: 0.75;
+  filter: blur(0.6px) contrast(0.95);
+  transition:
+    opacity 0.6s ease,
+    filter 0.6s ease,
+    box-shadow 0.6s ease;
+  overflow: hidden;
+}
+
+/* Noise texture */
+.post::before,
+.post::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+
+.post::before {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.03) 0px,
+      transparent 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+  opacity: 1;
+}
+
+.post::after {
+  background:
+    radial-gradient(circle at 30% 40%, rgba(0,0,0,0.03), transparent 55%),
+    radial-gradient(circle at 70% 65%, rgba(0,0,0,0.03), transparent 55%);
+  opacity: 1;
+}
+
+/* Focused card (purely visual) */
+.post.focused {
+  opacity: 1;
+  filter: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.post.focused::before,
+.post.focused::after {
+  opacity: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.author {
+  font-family: Lora, serif;
+  font-weight: 600;
+}
+
+.date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.image {
+  height: 260px;
+  background: linear-gradient(135deg, var(--paper), var(--surface));
+  border-radius: 4px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-style: italic;
+}
+</style>
+</head>
+
+<body>
+<div class="main" id="feed"></div>
+
+<script>
+/* ---------------- Demo Data ---------------- */
+
+const posts = [
+  { a:"alice_w", d:"Jan 15, 2025", img:true,  t:"Slowing down is harder than speeding up. But it’s worth it." },
+  { a:"benjamin_t", d:"Jan 14, 2025", img:true,  t:"Morning walks hit different when the phone stays in your pocket." },
+  { a:"charlotte_m", d:"Jan 13, 2025", img:false, t:"Depth beats frequency. Every time." },
+  { a:"david_k", d:"Jan 12, 2025", img:false, t:"Writing by hand feels like thinking out loud." },
+  { a:"emma_r", d:"Jan 11, 2025", img:true,  t:"Growth is quiet. You only notice it looking back." },
+  { a:"frank_l", d:"Jan 10, 2025", img:false, t:"Had a conversation with no phones. Felt rare." },
+  { a:"grace_h", d:"Jan 9, 2025", img:false, t:"Old letters carry time inside them." },
+  { a:"henry_p", d:"Jan 8, 2025", img:true,  t:"Making bread is just patience wearing flour." }
+];
+
+/* ---------------- Render ---------------- */
+
+const feed = document.getElementById("feed");
+
+posts.forEach(p => {
+  const el = document.createElement("article");
+  el.className = "post";
+  el.innerHTML = `
+    <div class="header">
+      <div class="author">@${p.a}</div>
+      <div class="date">${p.d}</div>
+    </div>
+    ${p.img ? `<div class="image">Image placeholder</div>` : ""}
+    <p>${p.t}</p>
+  `;
+  feed.appendChild(el);
+});
+
+/* ---------------- Center-based focus (NO SCROLL CONTROL) ---------------- */
+
+function updateFocus() {
+  const center = window.innerHeight / 2;
+  let closest = null;
+  let min = Infinity;
+
+  document.querySelectorAll(".post").forEach(card => {
+    const r = card.getBoundingClientRect();
+    const cardCenter = r.top + r.height / 2;
+    const dist = Math.abs(cardCenter - center);
+
+    if (r.bottom > 0 && r.top < window.innerHeight && dist < min) {
+      min = dist;
+      closest = card;
+    }
+  });
+
+  document.querySelectorAll(".post")
+    .forEach(c => c.classList.toggle("focused", c === closest));
+}
+
+window.addEventListener("scroll", () => {
+  requestAnimationFrame(updateFocus);
+});
+
+// Initial state
+updateFocus();
+</script>
+</body>
+</html>
