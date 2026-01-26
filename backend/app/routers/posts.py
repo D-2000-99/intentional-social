@@ -10,6 +10,7 @@ from app.core.image_urls import build_image_path
 from app.core.s3 import validate_image, upload_photo_to_s3, generate_presigned_url, delete_photo_from_s3
 from app.models.post import Post
 from app.models.post_audience_tag import PostAudienceTag
+from app.models.post_stats import PostStats
 from app.models.reported_post import ReportedPost
 from app.models.tag import Tag
 from app.schemas.post import PostCreate, PostOut, ReportPostRequest
@@ -196,6 +197,11 @@ async def create_post(
         new_post.photo_urls = photo_s3_keys
         db.commit()
         db.refresh(new_post)
+        
+        # Initialize PostStats for the new post
+        post_stats = PostStats(post_id=new_post.id, comment_count=0)
+        db.add(post_stats)
+        db.commit()
     else:
         # No photos, create post normally
         # Ensure timestamp is naive (no timezone) to preserve client's local time
@@ -213,6 +219,11 @@ async def create_post(
         db.add(new_post)
         db.commit()
         db.refresh(new_post)
+        
+        # Initialize PostStats for the new post
+        post_stats = PostStats(post_id=new_post.id, comment_count=0)
+        db.add(post_stats)
+        db.commit()
     
     # If audience is tags, create post_audience_tags
     if audience_type == "tags" and tag_ids:
@@ -230,6 +241,10 @@ async def create_post(
     # Use PostService to batch load audience tags
     audience_tags_map = PostService.batch_load_audience_tags([new_post], db)
     
+    # Get comment count from PostStats (should be 0 for new post)
+    post_stats = db.query(PostStats).filter(PostStats.post_id == new_post.id).first()
+    comment_count = post_stats.comment_count if post_stats else 0
+    
     # Return PostOut with pre-signed URLs
     return PostOut(
         id=new_post.id,
@@ -240,7 +255,8 @@ async def create_post(
         photo_urls_presigned=photo_urls_presigned,
         created_at=new_post.created_at,
         author=new_post.author,
-        audience_tags=audience_tags_map.get(new_post.id, [])
+        audience_tags=audience_tags_map.get(new_post.id, []),
+        comment_count=comment_count
     )
 
 
@@ -261,10 +277,19 @@ def get_my_posts(
     # Use PostService to batch load audience tags (fixes N+1 query problem)
     audience_tags_map = PostService.batch_load_audience_tags(posts, db)
     
+    # Batch load PostStats for all posts
+    post_ids = [post.id for post in posts]
+    post_stats_map = {}
+    if post_ids:
+        stats = db.query(PostStats).filter(PostStats.post_id.in_(post_ids)).all()
+        post_stats_map = {stat.post_id: stat.comment_count for stat in stats}
+    
     # Convert to PostOut with stable image URLs
     result = []
     for post in posts:
         photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
+        
+        comment_count = post_stats_map.get(post.id, 0)
         
         post_dict = {
             "id": post.id,
@@ -275,7 +300,8 @@ def get_my_posts(
             "photo_urls_presigned": photo_urls_presigned,
             "created_at": post.created_at,
             "author": post.author,
-            "audience_tags": audience_tags_map.get(post.id, [])
+            "audience_tags": audience_tags_map.get(post.id, []),
+            "comment_count": comment_count
         }
         result.append(PostOut(**post_dict))
     
@@ -308,10 +334,19 @@ def get_user_posts(
     # Use PostService to batch load audience tags (fixes N+1 query problem)
     audience_tags_map = PostService.batch_load_audience_tags(posts, db)
     
+    # Batch load PostStats for all posts
+    post_ids = [post.id for post in posts]
+    post_stats_map = {}
+    if post_ids:
+        stats = db.query(PostStats).filter(PostStats.post_id.in_(post_ids)).all()
+        post_stats_map = {stat.post_id: stat.comment_count for stat in stats}
+    
     # Convert to PostOut with stable image URLs
     result = []
     for post in posts:
         photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
+        
+        comment_count = post_stats_map.get(post.id, 0)
         
         post_dict = {
             "id": post.id,
@@ -322,7 +357,8 @@ def get_user_posts(
             "photo_urls_presigned": photo_urls_presigned,
             "created_at": post.created_at,
             "author": post.author,
-            "audience_tags": audience_tags_map.get(post.id, [])
+            "audience_tags": audience_tags_map.get(post.id, []),
+            "comment_count": comment_count
         }
         result.append(PostOut(**post_dict))
     

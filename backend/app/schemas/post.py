@@ -29,6 +29,7 @@ class PostOut(BaseModel):
     author: AuthorOut  # Include author details
     audience_tags: List[TagOut] = []  # Tags used for audience filtering
     digest_summary: Optional[str] = None  # LLM-generated summary for digest view
+    comment_count: int = 0  # Number of comments on this post
     # Note: importance_score is intentionally NOT included - it's internal only
 
     class Config:

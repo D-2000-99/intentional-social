@@ -12,6 +12,7 @@ from app.models.reply import Reply
 from app.models.reaction import Reaction
 from app.models.reported_post import ReportedPost
 from app.models.notification import Notification
+from app.models.post_stats import PostStats
 # MVP TEMPORARY: Registration request model - remove when moving beyond MVP
 from app.models.registration_request import RegistrationRequest
 

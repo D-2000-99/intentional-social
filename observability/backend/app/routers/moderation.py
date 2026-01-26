@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.config import settings
 from app.core.deps import get_db, get_moderator_user
@@ -10,6 +10,7 @@ from app.core.s3 import delete_photo_from_s3, generate_presigned_urls
 from app.models.user import User
 from app.models.post import Post
 from app.models.comment import Comment
+from app.models.post_stats import PostStats
 from app.models.connection import Connection
 from app.models.tag import Tag
 from app.models.user_tag import UserTag
@@ -323,7 +324,19 @@ def delete_user(
             db.query(ReportedPost).filter(ReportedPost.post_id.in_(post_ids)).delete(synchronize_session=False)
         
         # Step 5: Delete Comments authored by this user (including comments on other users' posts)
+        # First, get post_ids and comment counts before deletion to update PostStats
+        comments_to_delete = db.query(Comment.post_id, func.count(Comment.id).label('count')).filter(
+            Comment.author_id == user_id
+        ).group_by(Comment.post_id).all()
+        
+        # Delete the comments
         db.query(Comment).filter(Comment.author_id == user_id).delete(synchronize_session=False)
+        
+        # Update PostStats for affected posts
+        for post_id, comment_count in comments_to_delete:
+            post_stats = db.query(PostStats).filter(PostStats.post_id == post_id).first()
+            if post_stats:
+                post_stats.comment_count = max(0, post_stats.comment_count - comment_count)
         
         # Step 6: Delete Post records (cascade will handle comments via post.comments)
         db.query(Post).filter(Post.author_id == user_id).delete(synchronize_session=False)

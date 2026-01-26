@@ -9,6 +9,7 @@ from app.core.image_urls import build_image_path
 from app.core.metrics import feed_requests_total, feed_latency_seconds
 from app.models.user import User
 from app.models.post import Post
+from app.models.post_stats import PostStats
 from app.models.connection import Connection, ConnectionStatus
 from app.models.user_tag import UserTag
 from app.models.post_audience_tag import PostAudienceTag
@@ -132,10 +133,20 @@ def get_feed(
         # Use PostService to batch load audience tags (fixes N+1 query problem)
         audience_tags_map = PostService.batch_load_audience_tags(filtered_posts, db)
         
+        # Batch load PostStats for all posts (fixes N+1 query problem)
+        post_ids = [post.id for post in filtered_posts]
+        post_stats_map = {}
+        if post_ids:
+            stats = db.query(PostStats).filter(PostStats.post_id.in_(post_ids)).all()
+            post_stats_map = {stat.post_id: stat.comment_count for stat in stats}
+        
         # Convert posts to PostOut with pre-signed URLs for photos
         result = []
         for post in filtered_posts:
             photo_urls_presigned = [build_image_path(key) for key in (post.photo_urls or [])]
+            
+            # Get comment count from PostStats (default to 0 if not found)
+            comment_count = post_stats_map.get(post.id, 0)
             
             # Create PostOut with pre-signed URLs
             post_dict = {
@@ -147,7 +158,8 @@ def get_feed(
                 "photo_urls_presigned": photo_urls_presigned,
                 "created_at": post.created_at,
                 "author": post.author,
-                "audience_tags": audience_tags_map.get(post.id, [])
+                "audience_tags": audience_tags_map.get(post.id, []),
+                "comment_count": comment_count
             }
             result.append(PostOut(**post_dict))
 

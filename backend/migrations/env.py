@@ -22,6 +22,7 @@ from app.models.post_audience_tag import PostAudienceTag  # noqa
 from app.models.comment import Comment  # noqa
 from app.models.reply import Reply  # noqa
 from app.models.reaction import Reaction  # noqa
+from app.models.post_stats import PostStats  # noqa
 
 # Alembic Config object
 config = context.config

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, update
 from typing import List
 
 from app.core.deps import get_db, get_current_user
 from app.models.comment import Comment
 from app.models.post import Post
+from app.models.post_stats import PostStats
 from app.models.user import User
 from app.models.connection import Connection, ConnectionStatus
 from app.schemas.comment import CommentCreate, CommentOut
@@ -73,6 +74,16 @@ def create_comment(
         content=comment_data.content.strip()
     )
     db.add(new_comment)
+    
+    # Update or create PostStats for this post
+    post_stats = db.query(PostStats).filter(PostStats.post_id == comment_data.post_id).first()
+    if not post_stats:
+        post_stats = PostStats(post_id=comment_data.post_id, comment_count=0)
+        db.add(post_stats)
+    
+    # Increment comment count
+    post_stats.comment_count = post_stats.comment_count + 1
+    
     db.commit()
     db.refresh(new_comment)
     

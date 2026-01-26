@@ -39,8 +39,8 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
     const emojiPickerRef = useRef(null);
     const longPressTimerRef = useRef(null);
     
-    // Comment count state
-    const [commentCount, setCommentCount] = useState(0);
+    // Comment count state - initialize from post prop if available, otherwise 0
+    const [commentCount, setCommentCount] = useState(post.comment_count || 0);
     
     // Link preview state - support multiple previews
     const [linkPreviews, setLinkPreviews] = useState([]);
@@ -110,20 +110,29 @@ export default function PostCard({ post, currentUser, onPostDeleted, showDeleteB
         fetchReactions();
     }, [post.id, token]);
 
-    // Fetch comment count when component mounts
+    // Update comment count when post prop changes (e.g., when feed refreshes)
     useEffect(() => {
-        const fetchCommentCount = async () => {
-            if (!token) return;
-            try {
-                const data = await api.getPostCommentCount(token, post.id);
-                setCommentCount(data.count || 0);
-            } catch (err) {
-                console.error("Failed to fetch comment count", err);
-                // Don't show error to user, just leave count at 0
-            }
-        };
-        fetchCommentCount();
-    }, [post.id, token]);
+        if (post.comment_count !== undefined) {
+            setCommentCount(post.comment_count);
+        }
+    }, [post.comment_count]);
+    
+    // Only fetch comment count if not provided in post prop (fallback for other views)
+    useEffect(() => {
+        if (post.comment_count === undefined) {
+            const fetchCommentCount = async () => {
+                if (!token) return;
+                try {
+                    const data = await api.getPostCommentCount(token, post.id);
+                    setCommentCount(data.count || 0);
+                } catch (err) {
+                    console.error("Failed to fetch comment count", err);
+                    // Don't show error to user, just leave count at 0
+                }
+            };
+            fetchCommentCount();
+        }
+    }, [post.id, post.comment_count, token]);
 
     // Fetch link previews when component mounts
     useEffect(() => {
